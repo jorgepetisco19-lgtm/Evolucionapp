@@ -87,7 +87,13 @@ async function renderRoute() {
   const { name, params } = currentRoute();
   const my = ++token;
   document.querySelectorAll('.tabs a').forEach((a) => a.classList.toggle('on', a.dataset.tab === name));
-  const view = document.getElementById('view');
+  // Cada pantalla recibe un contenedor NUEVO: así no se acumulan los "oyentes" de clics de las pantallas anteriores
+  // (si se reutilizara, al pulsar "Medidas" también se ejecutaría el código de "Fotos" y te llevaría allí).
+  const old = document.getElementById('view');
+  const view = document.createElement('main');
+  view.id = 'view';
+  view.tabIndex = -1;
+  old.replaceWith(view);
   setHtml(view, spinner());
   try {
     const mod = await VIEWS[name]();

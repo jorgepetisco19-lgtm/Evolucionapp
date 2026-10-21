@@ -51,7 +51,8 @@ barra de dirección arriba. La app funciona igual. La opción 5 de arriba (insta
 
 ## Actualizar la app
 
-Cambia lo que quieras, haz commit y push. Para que los móviles descarguen la versión nueva, sube el número de `VERSION` al principio de `sw.js` (`v1` → `v2`).
+Los cambios los prepara Claude y deja los archivos en esta carpeta. Tú solo haces *Commit to main* y *Push origin* en GitHub Desktop.
+Cada cambio sube el número de `VERSION` en `sw.js` para que los móviles descarguen la versión nueva (la app se actualiza al cerrarla del todo y volver a abrirla, a veces dos veces).
 
 ## Probar en el ordenador (opcional)
 

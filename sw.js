@@ -1,7 +1,7 @@
 // Service worker: guarda la "cáscara" de la app para que abra rápido y sin conexión.
 // Los datos (pesos, fotos...) siempre se piden a Supabase; esto solo cachea archivos de la propia app.
 // Al publicar cambios, sube el número de VERSION para que los móviles descarguen la versión nueva.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `evolucionapp-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'manifest.webmanifest', 'icons/logo.svg', 'icons/icon-192.png',

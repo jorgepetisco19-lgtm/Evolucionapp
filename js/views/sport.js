@@ -1,6 +1,6 @@
 // Deporte: registro de entrenos (gimnasio, pádel, caminar...) y rutinas guardadas con series, repeticiones y carga.
 import { listRange, listAll, insert, update, remove } from '../db.js';
-import { exerciseEditor, summarize, cleanExercises } from '../exercises.js';
+import { exerciseEditor, summarize, cleanExercises, setsText } from '../exercises.js';
 import {
   html, raw, setHtml, on, openModal, todayStr, addDays, dateLong, toNum, fail, toast, navigate, refresh, confirmBox, weekdayIndex,
 } from '../util.js';
@@ -51,7 +51,7 @@ async function renderDay(el, params) {
           <button class="icon-btn" data-edit="${w.id}" aria-label="${t('common.edit')}">${raw(ICONS.edit)}</button>
           <button class="icon-btn" data-del="${w.id}" aria-label="${t('common.delete')}">${raw(ICONS.trash)}</button>
         </div>
-        ${w.exercises && w.exercises.length ? html`<ul class="ex-list">${w.exercises.map((e) => html`<li><b>${e.name}</b> <span class="muted">${(e.sets || []).map((s) => `${s.reps ?? '?'}×${s.kg ?? 0}`).join(' · ')}</span></li>`)}</ul>` : ''}
+        ${w.exercises && w.exercises.length ? html`<ul class="ex-list">${w.exercises.map((e) => html`<li><b>${e.name}</b> <span class="muted">${setsText(e, ' · ')}</span></li>`)}</ul>` : ''}
         ${w.notes ? html`<p class="muted small">${w.notes}</p>` : ''}
       </div>`)}`);
   on(el, 'click', '[data-d]', (e, b) => navigate('sport', { date: addDays(date, Number(b.dataset.d)) }));
@@ -77,6 +77,7 @@ function openWorkout({ date, routines, existing, type, routine }) {
     name: existing && existing.type !== 'gym' ? existing.name || '' : '',
     duration: existing && existing.duration_min != null ? existing.duration_min : '',
     notes: existing && existing.notes ? existing.notes : '',
+    saveRoutine: false,
   };
   const m = openModal(html`<form id="w-form" autocomplete="off"></form>`, { title: existing ? t('sport.edit') : t('sport.add'), wide: true });
   const form = m.body.querySelector('#w-form');
@@ -87,7 +88,13 @@ function openWorkout({ date, routines, existing, type, routine }) {
       ${state.type === 'gym' ? html`
         ${routines.length ? html`<label class="field"><span>${t('sport.fromRoutine')}</span>
           <select id="routine"><option value="">${t('sport.noRoutine')}</option>${routines.map((r) => html`<option value="${r.id}" ${r.name === state.routineName ? 'selected' : ''}>${r.name}</option>`)}</select></label>` : ''}
-        <div id="ex-editor"></div>` : html`
+        <div id="ex-editor"></div>
+        <div class="card save-routine">
+          <label class="check"><input type="checkbox" id="save-routine" ${state.saveRoutine ? 'checked' : ''}><span>${t('sport.saveAsRoutine')}</span></label>
+          ${state.saveRoutine ? html`<label class="field"><span>${t('sport.routineName')}</span>
+            <input type="text" name="routineName" value="${state.routineName}" maxlength="60" placeholder="${t('sport.routinePh')}"></label>
+            <p class="tiny muted">${t('sport.saveAsRoutineHint')}</p>` : ''}
+        </div>` : html`
         <label class="field"><span>${t('sport.nameOpt')}</span><input type="text" name="name" value="${state.name}" maxlength="80"></label>`}
       <div class="grid2">
         <label class="field"><span>${t('sport.duration')}</span><input type="number" name="duration" min="0" inputmode="numeric" value="${state.duration}" placeholder="—"></label>
@@ -99,6 +106,7 @@ function openWorkout({ date, routines, existing, type, routine }) {
   // Los campos sencillos se guardan en `state` al escribir, así sobreviven a los repintados.
   on(form, 'input', 'input[name], textarea[name]', (e, inp) => { state[inp.name] = inp.value; });
   on(form, 'click', '[data-type]', (e, b) => { state.type = b.dataset.type; draw(); });
+  on(form, 'change', '#save-routine', (e, c) => { state.saveRoutine = c.checked; draw(); });
   on(form, 'change', '#routine', (e, sel) => {
     const r = routines.find((x) => x.id === sel.value);
     if (r) { state.exercises = clone(r.exercises); state.routineName = r.name; draw(); }
@@ -109,16 +117,25 @@ function openWorkout({ date, routines, existing, type, routine }) {
     const row = {
       date: state.date,
       type: state.type,
-      name: state.type === 'gym' ? state.routineName || null : String(state.name).trim() || null,
+      name: state.type === 'gym' ? String(state.routineName || '').trim() || null : String(state.name).trim() || null,
       duration_min: toNum(state.duration),
       notes: String(state.notes).trim() || null,
       exercises: state.type === 'gym' ? cleanExercises(state.exercises) : [],
     };
+    const asRoutine = state.type === 'gym' && state.saveRoutine;
+    if (asRoutine && !row.name) { toast(t('sport.routineNameReq'), 'error'); return; }
+    if (asRoutine && !row.exercises.length) { toast(t('sport.routineNeedsEx'), 'error'); return; }
     const btn = form.querySelector('[type=submit]');
     btn.disabled = true;
     try {
       if (existing) await update('workouts', existing.id, row); else await insert('workouts', row);
-      m.close(); toast(t('common.saved')); refresh();
+      if (asRoutine) {
+        // Si ya existe una rutina con ese nombre se actualiza; si no, se crea.
+        const same = routines.find((r) => r.name.trim().toLowerCase() === row.name.toLowerCase());
+        const data = { name: row.name, exercises: row.exercises };
+        if (same) await update('routines', same.id, data); else await insert('routines', { ...data, weekday: null });
+      }
+      m.close(); toast(asRoutine ? t('sport.savedWithRoutine') : t('common.saved')); refresh();
     } catch (err) { btn.disabled = false; fail(err); }
   };
 }
@@ -147,7 +164,7 @@ async function renderRoutines(el) {
 }
 
 function openRoutine(routine) {
-  const exercises = routine ? clone(routine.exercises) : [{ name: '', sets: [{ reps: null, kg: null }] }];
+  const exercises = routine ? clone(routine.exercises) : [{ name: '', unit: 'kg', sets: [{ reps: null, kg: null, sec: null }] }];
   const m = openModal(html`
     <form id="r-form" autocomplete="off">
       <label class="field"><span>${t('sport.routineName')}</span><input type="text" name="name" value="${routine ? routine.name : ''}" required maxlength="60" placeholder="${t('sport.routinePh')}"></label>

@@ -39,7 +39,8 @@ export async function renderCompare(el) {
     const d = parseDate(ref);
     st.y = d.getFullYear(); st.m = d.getMonth();
   };
-  if (!st.init) { preselect(); st.init = true; }
+  // Se preselecciona la primera vez, al cambiar de tipo, y también si antes no había fotos y ahora sí.
+  if (!st.init || (st.A === null && st.B === null)) { preselect(); st.init = true; }
   if (st.y === null) { const n = new Date(); st.y = n.getFullYear(); st.m = n.getMonth(); }
 
   setHtml(el, html`
