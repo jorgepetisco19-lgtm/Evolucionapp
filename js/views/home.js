@@ -3,6 +3,7 @@ import { listRange } from '../db.js';
 import { renderCalendar, buildMarkers } from '../calendar.js';
 import { html, raw, setHtml, monthRange, todayStr, parseDate, dateLong, num, navigate, on } from '../util.js';
 import { t } from '../i18n.js';
+import { renderSteps } from '../onboarding.js';
 import { ICONS } from '../icons.js';
 
 let cur = null; // { y, m, sel }: se recuerda al volver a la pestaña
@@ -16,6 +17,7 @@ export async function render(el, params) {
   }
   setHtml(el, html`
     <section class="home">
+      <div id="steps"></div>
       <div class="card" id="cal"></div>
       <div class="row-actions">
         <button class="btn ghost" id="today">${t('home.today')}</button>
@@ -37,6 +39,7 @@ export async function render(el, params) {
     else if (go === 'meals') navigate('food', { date, add });
     else if (go === 'workouts') navigate('sport', { date, add });
   });
+  renderSteps(el.querySelector('#steps')).catch(() => {}); // sin bloquear el calendario
   await draw(el);
 }
 

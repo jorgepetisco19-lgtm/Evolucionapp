@@ -7,7 +7,7 @@ const CACHE = `evolucionapp-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'manifest.webmanifest', 'icons/logo.svg', 'icons/icon-192.png',
   'js/app.js', 'js/config.js', 'js/db.js', 'js/i18n.js', 'js/util.js', 'js/icons.js', 'js/calendar.js', 'js/charts.js',
-  'js/fields.js', 'js/exercises.js', 'js/off.js', 'js/ocr.js', 'js/version.js', 'js/nutrition.js', 'js/plan.js',
+  'js/fields.js', 'js/exercises.js', 'js/off.js', 'js/ocr.js', 'js/version.js', 'js/nutrition.js', 'js/plan.js', 'js/onboarding.js',
   'js/views/home.js', 'js/views/body.js', 'js/views/photos.js', 'js/views/compare.js', 'js/views/food.js', 'js/views/sport.js', 'js/views/settings.js', 'js/views/profile.js',
   'vendor/supabase.js',
 ];

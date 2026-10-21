@@ -3,6 +3,7 @@ import { sb, session, signInWithGoogle } from './db.js';
 import { t, getLang, setLang, onLangChange } from './i18n.js';
 import { html, raw, setHtml, fail, spinner, closeAllModals } from './util.js';
 import { ICONS, LOGO } from './icons.js';
+import { maybeTour } from './onboarding.js';
 
 const TABS = [
   { name: 'home', icon: 'home' },
@@ -112,6 +113,7 @@ async function renderRoute() {
 function startApp() {
   shell();
   renderRoute();
+  maybeTour();
 }
 
 window.addEventListener('hashchange', renderRoute);

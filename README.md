@@ -27,6 +27,7 @@ supabase/schema.sql tablas + seguridad (se ejecuta una vez)
 sw.js               caché para que abra rápido y sin conexión
 js/version.js       número de versión (se ve en la cabecera)
 js/nutrition.js     fórmulas de metabolismo basal y objetivo de kcal
+js/onboarding.js    tutorial de bienvenida y lista de primeros pasos
 ```
 
 ## Puesta en marcha (una sola vez)

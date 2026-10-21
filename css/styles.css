@@ -250,3 +250,27 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--green); border-radius: 999px; }
 .bar i.over { background: var(--orange); }
+
+/* ---------- tutorial y primeros pasos ---------- */
+.tour { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(8, 12, 20, .62); }
+.tour-card { width: min(420px, 100%); background: var(--surface); border-radius: 22px; padding: 26px 22px 20px; text-align: center; box-shadow: var(--shadow); animation: up .2s ease-out; }
+.tour-art { display: flex; justify-content: center; margin-bottom: 8px; color: var(--primary); }
+.tour-art svg { width: 84px; height: 84px; }
+.tour-card h2 { margin: 6px 0 8px; font-size: 1.25rem; }
+.tour-card p { margin: 0 0 14px; color: var(--muted); line-height: 1.45; }
+.tour-dots { display: flex; justify-content: center; gap: 7px; margin: 0 0 16px; }
+.tour-dots i { width: 8px; height: 8px; border-radius: 999px; background: var(--line); }
+.tour-dots i.on { width: 22px; background: var(--primary); }
+.tour-actions { display: flex; gap: 10px; justify-content: space-between; }
+.tour-actions .btn { flex: 1; }
+.tour-actions [hidden] { display: none; }
+.steps { margin-bottom: 12px; }
+.steps-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.steps-head h3 { margin: 0 0 2px; }
+.steps-head p { margin: 0 0 8px; }
+.steps ul { list-style: none; margin: 10px 0 0; padding: 0; }
+.steps li a { display: flex; align-items: center; gap: 12px; padding: 10px 2px; text-decoration: none; color: inherit; border-top: 1px solid var(--line); min-height: 46px; }
+.steps .tick { width: 24px; height: 24px; border-radius: 999px; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; flex: none; }
+.steps li.done .tick { background: var(--green); border-color: var(--green); color: #fff; }
+.steps li.done .grow { color: var(--muted); text-decoration: line-through; }
+.steps .chev { color: var(--muted); font-size: 1.4rem; }
