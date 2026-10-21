@@ -1,6 +1,7 @@
 // Comidas: diario con kcal y macros, y recetas propias (eliges ingredientes y la app las guarda con su nombre).
 import { listRange, listAll, insert, update, remove } from '../db.js';
 import { searchFoods, totals } from '../off.js';
+import { currentPlan } from '../plan.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, num, toNum, fail, toast, navigate, refresh, confirmBox,
 } from '../util.js';
@@ -26,9 +27,10 @@ export async function render(el, params) {
 // ---------- diario ----------
 async function renderDay(el, params) {
   const date = params.date || todayStr();
-  const [meals, recipes] = await Promise.all([
+  const [meals, recipes, goalPlan] = await Promise.all([
     listRange('meals', date, date, '*', 'created_at'),
     listAll('recipes', { order: 'name', asc: true }),
+    currentPlan(),
   ]);
   const sum = meals.reduce((s, m) => ({
     kcal: s.kcal + Number(m.kcal), protein: s.protein + Number(m.protein_g), carbs: s.carbs + Number(m.carbs_g), fat: s.fat + Number(m.fat_g),
@@ -41,6 +43,10 @@ async function renderDay(el, params) {
     </div>
     <div class="card">
       <div class="kcal-big"><strong>${num(sum.kcal, 0)}</strong> <span class="muted">kcal</span></div>
+      ${goalPlan ? html`<div class="goal-line">
+        <div class="bar"><i style="width:${Math.min(100, Math.round((sum.kcal / goalPlan.target) * 100))}%" class="${sum.kcal > goalPlan.target ? 'over' : ''}"></i></div>
+        <p class="small muted">${t('food.goal')}: <b>${num(goalPlan.target, 0)} kcal</b> · ${sum.kcal > goalPlan.target ? t('food.over', { n: num(sum.kcal - goalPlan.target, 0) }) : t('food.left', { n: num(goalPlan.target - sum.kcal, 0) })}</p></div>`
+        : html`<p class="tiny"><a href="#/profile">${t('food.setGoal')} ›</a></p>`}
       <div class="macros">
         <div><b>${num(sum.protein, 0)} g</b><span>${t('food.protein')}</span></div>
         <div><b>${num(sum.carbs, 0)} g</b><span>${t('food.carbs')}</span></div>

@@ -18,6 +18,7 @@ const VIEWS = {
   food: () => import('./views/food.js'),
   sport: () => import('./views/sport.js'),
   settings: () => import('./views/settings.js'),
+  profile: () => import('./views/profile.js'),
 };
 
 const root = document.getElementById('app');
@@ -71,7 +72,7 @@ function currentRoute() {
 function shell() {
   setHtml(root, html`
     <header class="top">
-      <a class="brand" href="#/home">${raw(LOGO.replace('width="48" height="48"', 'width="28" height="28"'))}<span>Evolucionapp</span></a>
+      <a class="brand" href="#/home">${raw(LOGO.replace('width="48" height="48"', 'width="28" height="28"'))}<span>Evolucionapp</span><small class="ver">${window.APP_VERSION || ''}</small></a>
       <a class="icon-btn" href="#/settings" aria-label="${t('nav.settings')}">${raw(ICONS.settings)}</a>
     </header>
     <main id="view" tabindex="-1"></main>
@@ -150,7 +151,7 @@ async function boot() {
 // ---------- PWA ----------
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__installPrompt = e; });
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
 }
 
 boot();

@@ -11,6 +11,7 @@ export async function render(el) {
   const email = (session.user && session.user.email) || '';
   setHtml(el, html`
     <h2 class="page-title">${t('nav.settings')}</h2>
+    <a class="card link-card" href="#/profile"><div><h3>${t('profile.link')}</h3><p class="muted small">${t('profile.linkHelp')}</p></div><span class="chev">›</span></a>
     <div class="card">
       <h3>${t('settings.language')}</h3>
       <div class="chips">
@@ -28,7 +29,7 @@ export async function render(el) {
       <p class="muted">${email}</p>
       <button class="btn danger" id="logout">${t('settings.logout')}</button>
     </div>
-    <p class="tiny muted center"><a href="privacidad.html">${t('login.privacy')}</a> · <a href="terminos.html">${t('login.terms')}</a> · v1.0</p>`);
+    <p class="tiny muted center"><a href="privacidad.html">${t('login.privacy')}</a> · <a href="terminos.html">${t('login.terms')}</a> · ${window.APP_VERSION || ''}</p>`);
   on(el, 'click', '[data-lang]', (e, b) => { setLang(b.dataset.lang); });
   on(el, 'click', '[data-theme]', (e, b) => {
     try { localStorage.setItem('theme', b.dataset.theme); } catch { /* sin almacenamiento */ }

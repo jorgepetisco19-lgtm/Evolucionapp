@@ -103,12 +103,26 @@ create table if not exists public.meals (
 );
 create index if not exists meals_user_date_idx on public.meals (user_id, date);
 
+-- ---------- Perfil (de dónde partes) para calcular el metabolismo basal y el objetivo de kcal ----------
+create table if not exists public.profiles (
+  user_id uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  sex text check (sex in ('male', 'female')),
+  birth_date date,
+  height_cm numeric(5,1) check (height_cm between 80 and 250),
+  weight_kg numeric(5,1),                                      -- solo se usa si aún no hay ningún peso registrado
+  activity text check (activity in ('sedentary', 'light', 'moderate', 'high', 'athlete')),
+  goal text check (goal in ('lose', 'maintain', 'gain')),
+  pace numeric(3,2),                                           -- kg por semana
+  goal_weight_kg numeric(5,1),
+  updated_at timestamptz not null default now()
+);
+
 -- ---------- Seguridad: RLS + permisos ----------
 -- (En este proyecto "Automatically expose new tables" está desactivado, así que damos los permisos aquí.)
 do $$
 declare t text;
 begin
-  foreach t in array array['weigh_ins','measurements','photos','routines','workouts','recipes','meals']
+  foreach t in array array['weigh_ins','measurements','photos','routines','workouts','recipes','meals','profiles']
   loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on table public.%I from anon', t);

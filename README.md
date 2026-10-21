@@ -25,12 +25,14 @@ js/db.js            todo el acceso a Supabase
 js/i18n.js          textos en español e inglés
 supabase/schema.sql tablas + seguridad (se ejecuta una vez)
 sw.js               caché para que abra rápido y sin conexión
+js/version.js       número de versión (se ve en la cabecera)
+js/nutrition.js     fórmulas de metabolismo basal y objetivo de kcal
 ```
 
 ## Puesta en marcha (una sola vez)
 
 1. **Base de datos.** En Supabase: *SQL Editor* → *New query* → pega el contenido de `supabase/schema.sql` → *Run*.
-   Comprueba que en *Table Editor* aparecen 7 tablas (`weigh_ins`, `measurements`, `photos`, `routines`, `workouts`, `recipes`, `meals`) y en *Storage* el bucket `photos`.
+   Comprueba que en *Table Editor* aparecen 8 tablas (`weigh_ins`, `measurements`, `photos`, `routines`, `workouts`, `recipes`, `meals`, `profiles`) y en *Storage* el bucket `photos`.
 2. **Subir el código.** En GitHub Desktop verás todos los archivos nuevos → *Commit to main* → *Push origin*.
 3. **Publicar la web.** En github.com, repositorio → *Settings* → *Pages* → *Build and deployment*: *Deploy from a branch*, rama `main`, carpeta `/ (root)` → *Save*.
    A los 1-2 minutos estará en `https://jorgepetisco19-lgtm.github.io/Evolucionapp/`.
@@ -52,7 +54,7 @@ barra de dirección arriba. La app funciona igual. La opción 5 de arriba (insta
 ## Actualizar la app
 
 Los cambios los prepara Claude y deja los archivos en esta carpeta. Tú solo haces *Commit to main* y *Push origin* en GitHub Desktop.
-Cada cambio sube el número de `VERSION` en `sw.js` para que los móviles descarguen la versión nueva (la app se actualiza al cerrarla del todo y volver a abrirla, a veces dos veces).
+Cada cambio sube el número de `APP_VERSION` en `js/version.js` (es el que ves junto al nombre, arriba a la izquierda) para que los móviles descarguen la versión nueva (la app se actualiza al cerrarla del todo y volver a abrirla, a veces dos veces).
 
 ## Probar en el ordenador (opcional)
 

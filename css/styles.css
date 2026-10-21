@@ -54,6 +54,11 @@ button { cursor: pointer; }
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between;
   padding: 10px 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px);
 }
+.brand .ver { font-size: .68rem; font-weight: 600; color: var(--muted); letter-spacing: 0; align-self: flex-end; margin: 0 0 4px -4px; }
+.link-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-decoration: none; color: inherit; }
+.link-card h3 { margin: 0 0 2px; }
+.link-card p { margin: 0; }
+.link-card .chev { font-size: 1.6rem; color: var(--muted); }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); font-weight: 700; letter-spacing: .2px; }
 #view { padding: 4px 16px 24px; outline: none; }
 .page-title { margin: 8px 0 14px; }
@@ -230,3 +235,18 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .set { display: grid; grid-template-columns: 28px 1fr 1fr 36px; gap: 8px; align-items: center; margin-bottom: 6px; }
 .set.head { font-size: .75rem; color: var(--muted); font-weight: 600; }
 .set input { min-height: 40px; width: 100%; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); text-align: center; }
+
+/* ---------- perfil y objetivo de kcal ---------- */
+.back { display: inline-block; margin: 4px 0 0; color: var(--primary); text-decoration: none; font-weight: 600; }
+.plan .kcal-big { margin: 6px 0 4px; }
+.kv { margin: 12px 0 6px; }
+.kv > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.kv dt { font-weight: 600; }
+.kv dt small { display: block; font-weight: 400; font-size: .75rem; }
+.kv dd { margin: 0; font-weight: 700; white-space: nowrap; }
+.warn { color: var(--orange); margin: 8px 0; }
+.goal-line { margin-top: 8px; }
+.goal-line p { margin: 4px 0 0; }
+.bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--green); border-radius: 999px; }
+.bar i.over { background: var(--orange); }
