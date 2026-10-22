@@ -30,9 +30,16 @@ export function toFood(p) {
   };
 }
 
+// Las búsquedas que han ido bien se recuerdan 10 minutos: repetir la misma no gasta otra de las 10 por minuto que permite Open Food Facts.
+const cache = new Map();
+const CACHE_MS = 10 * 60 * 1000;
+
 export async function searchFoods(query, { signal } = {}) {
   const q = String(query || '').trim();
   if (q.length < 2) return [];
+  const ck = q.toLowerCase();
+  const hit = cache.get(ck);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.foods;
   const params = new URLSearchParams({
     search_terms: q, search_simple: '1', action: 'process', json: '1', page_size: '20',
     sort_by: 'unique_scans_n', fields: 'code,product_name,product_name_es,brands,nutriments', lc: 'es',
@@ -43,8 +50,12 @@ export async function searchFoods(query, { signal } = {}) {
   try {
     const res = await fetch(`${ENDPOINT}?${params}`, { signal: ctrl.signal });
     if (!res.ok) throw new Error(`Open Food Facts: HTTP ${res.status}`);
-    const data = await res.json();
-    return (data.products || []).map(toFood).filter(Boolean);
+    let data;
+    try { data = await res.json(); } catch { throw new Error('Open Food Facts: respuesta no válida (suele ser una página de "servicio saturado")'); }
+    const foods = (data.products || []).map(toFood).filter(Boolean);
+    if (cache.size > 60) cache.delete(cache.keys().next().value);
+    cache.set(ck, { at: Date.now(), foods });
+    return foods;
   } finally {
     clearTimeout(timer);
   }

@@ -5,7 +5,9 @@ import { currentPlan } from '../plan.js';
 import { openImport, openCopyMeals, openSuggest, saveRecipeRow } from './food-tools.js';
 import { TAGS } from '../menu.js';
 import { estimateOne } from '../estimate.js';
-import { loadMemory, remember } from '../ingredients.js';
+import { loadMemory, remember, searchMemory } from '../ingredients.js';
+import { searchTable } from '../foods-db.js';
+import { keyOf } from '../estimate.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, num, toNum, fail, toast, navigate, refresh, confirmBox,
 } from '../util.js';
@@ -272,7 +274,7 @@ function builder(el, { mode, init, onSubmit }) {
         ${state.searching ? spinner(t('food.searching')) : ''}
         ${state.error ? html`<p class="note warn">${state.error}</p>` : ''}
         ${state.results ? (state.results.length === 0 ? html`<p class="muted small">${t('food.noResults')}</p>` : html`<div class="results">${state.results.map((r, i) => html`<button type="button" class="result" data-res="${i}">
-          <span class="grow"><strong>${r.name}</strong><span class="muted tiny"> P ${num(r.p100)} · C ${num(r.c100)} · G ${num(r.f100)} /100 g</span></span><b>${num(r.kcal100, 0)} kcal</b>${raw(ICONS.plus)}</button>`)}</div>`) : ''}
+          <span class="grow"><strong>${r.name}</strong>${r.src ? html` <span class="tag est">${t('food.src.' + r.src)}</span>` : ''}<span class="muted tiny"> P ${num(r.p100)} · C ${num(r.c100)} · G ${num(r.f100)} /100 g</span></span><b>${num(r.kcal100, 0)} kcal</b>${raw(ICONS.plus)}</button>`)}</div>`) : ''}
         <button type="button" class="link" id="b-manual-toggle">${state.manual ? t('food.hideManual') : t('food.manual')}</button>
         ${state.manual ? html`<div class="manual grid2">
           <label class="field"><span>${t('food.ingName')}</span><input type="text" id="m-name"></label>
@@ -308,9 +310,17 @@ function builder(el, { mode, init, onSubmit }) {
   const doSearch = async () => {
     const q = el.querySelector('#b-q').value.trim();
     if (q.length < 2) return;
-    state.searching = true; state.error = ''; state.results = null; draw();
+    // Primero lo que ya tenemos (tu memoria y la tabla propia): sale al instante y sirve aunque Open Food Facts no responda.
+    const memory = await loadMemory();
+    const mine = searchMemory(memory, q, 5);
+    const taken = new Set(mine.map((m) => keyOf(m.name)));
+    const local = [...mine, ...searchTable(q, 8).filter((x) => !taken.has(keyOf(x.name)))];
+    state.error = ''; state.results = local.length ? local : null; state.searching = true; draw();
     el.querySelector('#b-q').value = q;
-    try { state.results = await searchFoods(q); } catch (err) { console.error(err); state.error = t('food.searchFailed'); }
+    let off = [];
+    try { off = await searchFoods(q); } catch (err) { console.warn(err); state.error = t(local.length ? 'food.searchOffDown' : 'food.searchFailed'); }
+    const all = [...local, ...off];
+    state.results = state.error && !all.length ? null : all;
     state.searching = false; draw();
     el.querySelector('#b-q').value = q;
   };
@@ -318,7 +328,9 @@ function builder(el, { mode, init, onSubmit }) {
   on(el, 'keydown', '#b-q', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSearch(); } });
   on(el, 'click', '[data-res]', (e, b) => {
     const r = state.results[Number(b.dataset.res)];
-    state.items.push({ name: r.name, grams: 100, kcal100: r.kcal100, p100: r.p100, c100: r.c100, f100: r.f100 });
+    // Lo de la tabla propia es aproximado (se marca como estimado); lo de tu memoria, según de dónde saliera.
+    const est = r.src === 'db' ? 'db' : r.src === 'mem' && r.memSrc === 'off' ? 'off' : null;
+    state.items.push({ name: r.name, grams: 100, kcal100: r.kcal100, p100: r.p100, c100: r.c100, f100: r.f100, ...(est ? { est } : {}) });
     state.results = null; draw();
     const inputs = el.querySelectorAll('.grams');
     const last = inputs[inputs.length - 1];

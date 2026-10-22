@@ -78,3 +78,39 @@ export function lookupFood(name) {
   if (best.toks.length / Math.max(1, meaningful.length) < 0.5) return null; // el nombre trae demasiado que la tabla no conoce
   return { ...best.v, key: best.key };
 }
+
+/** Palabras de lo que se escribe en el buscador (sin las de relleno ni las de una sola letra). */
+export const queryTokens = (query) => tokens(query).filter((w) => w.length >= 2);
+
+/**
+ * ¿Encaja `text` con lo escrito? Cada palabra buscada debe ser el principio de alguna palabra del texto (así «pech» encuentra «pechuga»)
+ * o su plural. Devuelve null si no encaja, o un número (menor = mejor: menos palabras sobrantes en el texto).
+ */
+export function matchScore(qt, text) {
+  const et = tokens(text);
+  if (!qt.length || !et.length) return null;
+  if (!qt.every((q) => et.some((w) => w.startsWith(q) || same(q, w)))) return null;
+  return et.length - qt.length + (qt.every((q) => et.some((w) => w === q || same(q, w))) ? 0 : 0.5);
+}
+
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+// La tabla se guarda sin tildes (para comparar); al enseñar el nombre se las devolvemos a las palabras que las llevan.
+const ACCENT = { arandano: 'arándano', atun: 'atún', azucar: 'azúcar', brocoli: 'brócoli', calabacin: 'calabacín', champinon: 'champiñón', cuscus: 'cuscús', datil: 'dátil', esparrago: 'espárrago', espagueti: 'espagueti', jamon: 'jamón', limon: 'limón', maiz: 'maíz', macarron: 'macarrón', mejillon: 'mejillón', melocoton: 'melocotón', melon: 'melón', oregano: 'orégano', pimenton: 'pimentón', pina: 'piña', platano: 'plátano', proteina: 'proteína', rabano: 'rábano', requeson: 'requesón', salmon: 'salmón', sandia: 'sandía', tallarin: 'tallarín', freson: 'fresón', brecol: 'brécol', maria: 'maría', lino: 'lino', nuez: 'nuez' };
+const pretty = (name) => cap(name.split(' ').map((w) => ACCENT[w] || w).join(' '));
+
+/** Busca en la tabla propia por lo que se escribe en el buscador. Devuelve [{ name, kcal100, p100, c100, f100, src: 'db' }], lo más parecido primero. */
+export function searchTable(query, limit = 8) {
+  const qt = queryTokens(query);
+  if (!qt.length) return [];
+  const found = [];
+  for (const [names, [kcal, p, c, f]] of Object.entries(RAW)) {
+    const list = names.split('|');
+    let best = null;
+    for (const n of list) {
+      const sc = matchScore(qt, n);
+      if (sc !== null && (!best || sc < best.sc)) best = { sc, n };
+    }
+    if (best) found.push({ sc: best.sc, name: pretty(best.n), kcal100: kcal, p100: p, c100: c, f100: f, src: 'db' });
+  }
+  return found.sort((a, b) => a.sc - b.sc || a.name.length - b.name.length).slice(0, limit).map(({ sc: _s, ...r }) => r);
+}

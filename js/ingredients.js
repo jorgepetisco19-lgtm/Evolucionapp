@@ -3,6 +3,7 @@
 // o hay un error, la app sigue funcionando igual, solo que sin memoria.
 import { listAll, upsertMany, session } from './db.js';
 import { keyOf } from './estimate.js';
+import { queryTokens, matchScore } from './foods-db.js';
 
 let cache = null; // Map clave -> { key, name, kcal100, p100, c100, f100, source }
 let owner = null;
@@ -65,4 +66,16 @@ export async function remember(entries) {
     unavailable = true;
     return 0;
   }
+}
+
+/** Busca en tu memoria por lo que se escribe en el buscador. Devuelve [{ name, kcal100, p100, c100, f100, src: 'mem', memSrc }], lo más parecido primero. */
+export function searchMemory(memory, query, limit = 5) {
+  const qt = queryTokens(query);
+  if (!qt.length || !memory) return [];
+  const found = [];
+  for (const m of memory.values()) {
+    const sc = matchScore(qt, m.name);
+    if (sc !== null) found.push({ sc, name: m.name, kcal100: m.kcal100, p100: m.p100, c100: m.c100, f100: m.f100, src: 'mem', memSrc: m.source });
+  }
+  return found.sort((a, b) => a.sc - b.sc || a.name.length - b.name.length).slice(0, limit).map(({ sc: _s, ...r }) => r);
 }
