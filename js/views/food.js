@@ -1,7 +1,9 @@
 // Comidas: diario con kcal y macros, y recetas propias (eliges ingredientes y la app las guarda con su nombre).
-import { listRange, listAll, insert, update, remove } from '../db.js';
+import { listRange, listAll, insert, remove } from '../db.js';
 import { searchFoods, totals } from '../off.js';
 import { currentPlan } from '../plan.js';
+import { openImport, openCopyMeals, openSuggest, saveRecipeRow } from './food-tools.js';
+import { SLOTS } from '../menu.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, num, toNum, fail, toast, navigate, refresh, confirmBox,
 } from '../util.js';
@@ -54,6 +56,7 @@ async function renderDay(el, params) {
       </div>
     </div>
     <div class="row-actions"><button class="btn primary" id="add-meal">${raw(ICONS.plus)}<span>${t('food.add')}</span></button></div>
+    <div class="row-actions"><button class="btn" id="suggest-menu">${t('menu.btn')}</button><button class="btn" id="copy-meals">${t('copy.btn')}</button></div>
     ${meals.length === 0 ? html`<div class="card empty"><p>${t('food.empty')}</p></div>` : MEAL_TYPES.map((mt) => {
       const list = meals.filter((m) => m.meal_type === mt);
       if (!list.length) return '';
@@ -67,6 +70,8 @@ async function renderDay(el, params) {
     })}`);
   on(el, 'click', '[data-d]', (e, b) => navigate('food', { date: addDays(date, Number(b.dataset.d)) }));
   on(el, 'click', '#add-meal', () => openAddMeal(date, recipes));
+  on(el, 'click', '#copy-meals', () => openCopyMeals(date));
+  on(el, 'click', '#suggest-menu', () => openSuggest({ date, meals, recipes, goalPlan }));
   on(el, 'click', '[data-del]', async (e, b) => {
     if (!(await confirmBox(t('common.confirmDelete')))) return;
     try { await remove('meals', b.dataset.del); toast(t('common.deleted')); refresh(); } catch (err) { fail(err); }
@@ -104,9 +109,9 @@ function openAddMeal(date, recipes) {
       setHtml(paneEl, html`<div id="nb"></div>`); // contenedor nuevo para no duplicar listeners
       builder(paneEl.querySelector('#nb'), {
         mode: 'meal',
-        onSubmit: async ({ name, items, saveRecipe }) => {
+        onSubmit: async ({ name, items, saveRecipe, mealTypes }) => {
           let recipeId = null;
-          if (saveRecipe) recipeId = (await insert('recipes', { name, items })).id;
+          if (saveRecipe) recipeId = (await saveRecipeRow(null, { name, items, meal_types: mealTypes || [] })).id;
           const tt = totals(items, 1);
           await insert('meals', { date, meal_type: mealType, name, recipe_id: recipeId, factor: 1, items, kcal: tt.kcal, protein_g: tt.protein, carbs_g: tt.carbs, fat_g: tt.fat });
           m.close(); toast(t('common.saved')); refresh();
@@ -137,18 +142,19 @@ function openAddMeal(date, recipes) {
 async function renderRecipes(el) {
   const recipes = await listAll('recipes', { order: 'name', asc: true });
   setHtml(el, html`
-    <div class="row-actions"><button class="btn primary" id="new-recipe">${raw(ICONS.plus)}<span>${t('food.newRecipe')}</span></button></div>
+    <div class="row-actions"><button class="btn primary" id="new-recipe">${raw(ICONS.plus)}<span>${t('food.newRecipe')}</span></button><button class="btn" id="import-recipes">${t('imp.btn')}</button></div>
     ${recipes.length === 0 ? html`<div class="card empty"><p>${t('food.noRecipes')}</p></div>` : html`
     <div class="card list">${recipes.map((r) => {
       const tt = totals(r.items, 1);
       return html`<div class="row static">
-        <div class="grow"><strong>${r.name}</strong><div class="muted small">${r.items.map((i) => i.name).join(', ')}</div>
+        <div class="grow"><strong>${r.name}</strong>${(r.meal_types || []).length ? html`<div class="tags">${r.meal_types.map((k) => html`<span class="tag">${t('menu.slot.' + k)}</span>`)}</div>` : ''}<div class="muted small">${r.items.map((i) => i.name).join(', ')}</div>
           <div class="muted small">${num(tt.kcal, 0)} kcal · P ${num(tt.protein, 0)} · C ${num(tt.carbs, 0)} · G ${num(tt.fat, 0)}</div></div>
         <button class="icon-btn" data-edit="${r.id}" aria-label="${t('common.edit')}">${raw(ICONS.edit)}</button>
         <button class="icon-btn" data-del="${r.id}" aria-label="${t('common.delete')}">${raw(ICONS.trash)}</button>
       </div>`;
     })}</div>`}`);
   on(el, 'click', '#new-recipe', () => openRecipeEditor(null));
+  on(el, 'click', '#import-recipes', () => openImport(recipes));
   on(el, 'click', '[data-edit]', (e, b) => openRecipeEditor(recipes.find((r) => r.id === b.dataset.edit)));
   on(el, 'click', '[data-del]', async (e, b) => {
     if (!(await confirmBox(t('common.confirmDelete')))) return;
@@ -160,8 +166,8 @@ function openRecipeEditor(recipe) {
   const m = openModal(html`<div id="rb"></div>`, { title: recipe ? t('food.editRecipe') : t('food.newRecipe'), wide: true });
   builder(m.body.querySelector('#rb'), {
     mode: 'recipe', init: recipe,
-    onSubmit: async ({ name, items }) => {
-      if (recipe) await update('recipes', recipe.id, { name, items }); else await insert('recipes', { name, items });
+    onSubmit: async ({ name, items, mealTypes }) => {
+      await saveRecipeRow(recipe ? recipe.id : null, { name, items, meal_types: mealTypes });
       m.close(); toast(t('common.saved')); refresh();
     },
   });
@@ -169,7 +175,7 @@ function openRecipeEditor(recipe) {
 
 // ---------- constructor de comida/receta (ingredientes + gramos) ----------
 function builder(el, { mode, init, onSubmit }) {
-  const state = { name: init ? init.name : '', items: init ? JSON.parse(JSON.stringify(init.items)) : [], results: null, searching: false, error: '', manual: false, saveRecipe: false };
+  const state = { name: init ? init.name : '', items: init ? JSON.parse(JSON.stringify(init.items)) : [], results: null, searching: false, error: '', manual: false, saveRecipe: false, tags: new Set(init && init.meal_types ? init.meal_types : []) };
 
   const itemRow = (it, i) => html`<div class="item" data-i="${i}">
     <div class="grow"><strong>${it.name}</strong><div class="muted tiny">${num(it.kcal100, 0)} kcal/100 g</div></div>
@@ -199,6 +205,7 @@ function builder(el, { mode, init, onSubmit }) {
           <label class="field"><span>${t('food.fat')} / 100 g</span><input type="number" step="any" inputmode="decimal" id="m-f"></label>
           <button type="button" class="btn" id="m-add">${t('food.addIngredient')}</button></div>` : ''}
       </div>
+      ${mode === 'recipe' ? html`<div class="field"><span>${t('menu.tagsLabel')}</span><div class="chips" id="b-tags">${SLOTS.map((k) => html`<button type="button" class="chip ${state.tags.has(k) ? 'on' : ''}" data-tag="${k}">${t('menu.slot.' + k)}</button>`)}</div><p class="tiny muted">${t('menu.tagsHelp')}</p></div>` : ''}
       ${mode === 'meal' ? html`<label class="check"><input type="checkbox" id="b-save" ${state.saveRecipe ? 'checked' : ''}> ${t('food.saveAsRecipe')}</label>` : ''}
       <div class="form-actions"><button type="button" class="btn primary" id="b-ok">${t(mode === 'recipe' ? 'common.save' : 'food.addToDay')}</button></div>`);
     drawTotals();
@@ -214,6 +221,7 @@ function builder(el, { mode, init, onSubmit }) {
     state.items[i].grams = toNum(inp.value) ?? 0;
     drawTotals();
   });
+  on(el, 'click', '[data-tag]', (e, b) => { const k = b.dataset.tag; if (state.tags.has(k)) state.tags.delete(k); else state.tags.add(k); b.classList.toggle('on', state.tags.has(k)); });
   on(el, 'change', '#b-save', (e, c) => { state.saveRecipe = c.checked; });
   on(el, 'click', '[data-rm]', (e, b) => { state.items.splice(Number(b.dataset.rm), 1); draw(); });
   on(el, 'click', '#b-manual-toggle', () => { state.manual = !state.manual; draw(); });
@@ -250,7 +258,7 @@ function builder(el, { mode, init, onSubmit }) {
     if (!name && (mode === 'recipe' || state.saveRecipe)) { toast(t('food.needName'), 'error'); return; }
     if (!name) name = state.items.slice(0, 3).map((i) => i.name.split('(')[0].trim()).join(', ');
     btn.disabled = true;
-    try { await onSubmit({ name, items: state.items, saveRecipe: state.saveRecipe }); } catch (err) { btn.disabled = false; fail(err); }
+    try { await onSubmit({ name, items: state.items, saveRecipe: state.saveRecipe, mealTypes: SLOTS.filter((k) => state.tags.has(k)) }); } catch (err) { btn.disabled = false; fail(err); }
   });
   draw();
 }

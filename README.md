@@ -28,6 +28,11 @@ sw.js               caché para que abra rápido y sin conexión
 js/version.js       número de versión (se ve en la cabecera)
 js/nutrition.js     fórmulas de metabolismo basal y objetivo de kcal
 js/onboarding.js    tutorial de bienvenida y lista de primeros pasos
+js/recipe-import.js lee recetas de CSV/Excel (formatos, avisos, plantilla)
+js/xlsx-read.js     lector de .xlsx sin librerías
+js/menu.js          cálculo de la sugerencia de menú del día
+js/views/food-tools.js  pantallas de importar recetas, repetir comidas y menú del día
+supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 ```
 
 ## Puesta en marcha (una sola vez)
@@ -39,6 +44,8 @@ js/onboarding.js    tutorial de bienvenida y lista de primeros pasos
    A los 1-2 minutos estará en `https://jorgepetisco19-lgtm.github.io/Evolucionapp/`.
 4. **Probar.** Abre esa dirección en Chrome del móvil → *Continuar con Google*.
 5. **Instalar.** Menú ⋮ de Chrome → *Instalar app* (o *Añadir a la pantalla de inicio*). Mejor haz el primer inicio de sesión desde Chrome *antes* de instalar.
+
+**Si ya tenías la base de datos creada antes de la v6:** ejecuta además `supabase/03-menu.sql` (SQL Editor → pegar → Run). Sin él todo funciona, pero las recetas no guardan sus etiquetas (desayuno/comida/merienda/cena).
 
 Si Google devuelve `redirect_uri_mismatch`, espera unos minutos (Google tarda en aplicar los cambios) y revisa que la URI de redirección sea exactamente
 `https://nxcyupxvkygghlwpboge.supabase.co/auth/v1/callback`.

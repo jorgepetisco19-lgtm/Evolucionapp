@@ -40,6 +40,9 @@ export async function upsert(table, row, onConflict) {
 export async function insert(table, row) {
   return check(await sb.from(table).insert(row).select().single());
 }
+export async function insertMany(table, rows) {
+  return check(await sb.from(table).insert(rows).select());
+}
 export async function update(table, id, row) {
   return check(await sb.from(table).update(row).eq('id', id).select().single());
 }

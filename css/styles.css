@@ -274,3 +274,25 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .steps li.done .tick { background: var(--green); border-color: var(--green); color: #fff; }
 .steps li.done .grow { color: var(--muted); text-decoration: line-through; }
 .steps .chev { color: var(--muted); font-size: 1.4rem; }
+
+/* ---- v6: importar recetas, repetir comidas, menú del día ---- */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+.tag { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); }
+.imp-badge { font-size: .7rem; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.imp-badge.new { background: color-mix(in srgb, var(--green) 18%, var(--surface)); color: var(--green); }
+.imp-badge.upd { background: color-mix(in srgb, var(--orange) 18%, var(--surface)); color: var(--orange); }
+.imp-list { max-height: 42vh; overflow: auto; margin: 10px 0; }
+.warn-box { margin: 8px 0; padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--orange) 12%, var(--surface)); font-size: .85rem; }
+.warn-box summary { cursor: pointer; font-weight: 600; }
+.warn-box ul { margin: 6px 0 0; padding-left: 18px; }
+.form-actions.two { justify-content: space-between; }
+.form-actions.two .btn { flex: 1; }
+.check-row { display: flex; align-items: center; gap: 10px; }
+.check-row input { width: 20px; height: 20px; flex: none; }
+.slot { margin: 0 0 10px; padding: 12px 14px; }
+.slot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.slot-head h3 { margin: 0; font-size: 1rem; }
+.slot-name { display: block; margin-top: 4px; }
+.slot-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.slot-actions .btn.primary { margin-left: auto; }
+.plan-line { padding: 10px 14px; }

@@ -84,6 +84,9 @@ create table if not exists public.recipes (
   items jsonb not null default '[]'::jsonb,                   -- [{name, grams, kcal100, p100, c100, f100}]
   created_at timestamptz not null default now()
 );
+alter table public.recipes
+  add column if not exists meal_types text[] not null default '{}'               -- cuándo se come: breakfast, lunch, snack, dinner
+  check (meal_types <@ array['breakfast', 'lunch', 'snack', 'dinner']::text[]);
 
 -- ---------- Comidas registradas ----------
 create table if not exists public.meals (
