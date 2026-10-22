@@ -3,7 +3,7 @@ import { listRange, listAll, insert, remove, updateMany } from '../db.js';
 import { searchFoods, totals } from '../off.js';
 import { currentPlan } from '../plan.js';
 import { openImport, openCopyMeals, openSuggest, saveRecipeRow } from './food-tools.js';
-import { SLOTS } from '../menu.js';
+import { TAGS } from '../menu.js';
 import { estimateOne } from '../estimate.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, num, toNum, fail, toast, navigate, refresh, confirmBox,
@@ -149,7 +149,7 @@ async function renderRecipes(el) {
   const draw = () => {
     const list = shown();
     const nNone = recipes.filter((r) => !tagsOf(r).length).length;
-    const filters = [['all', t('food.filterAll')], ['none', `${t('food.filterNone')} (${nNone})`], ...SLOTS.map((k) => [k, t('menu.slot.' + k)])];
+    const filters = [['all', t('food.filterAll')], ['none', `${t('food.filterNone')} (${nNone})`], ...TAGS.map((k) => [k, t('menu.slot.' + k)])];
     setHtml(el, html`
       <div class="row-actions"><button class="btn primary" id="new-recipe">${raw(ICONS.plus)}<span>${t('food.newRecipe')}</span></button><button class="btn" id="import-recipes">${t('imp.btn')}</button></div>
       ${recipes.length === 0 ? html`<div class="card empty"><p>${t('food.noRecipes')}</p></div>` : html`
@@ -171,7 +171,7 @@ async function renderRecipes(el) {
       ${st.selecting ? html`<div class="sel-pad"></div><div class="sel-bar" role="toolbar">
         <div class="sel-head"><strong>${t('food.selected', { n: st.sel.size })}</strong>
           <div class="seg small" id="sel-mode"><button data-mode="add" class="${st.mode === 'add' ? 'on' : ''}">${t('food.modeAdd')}</button><button data-mode="remove" class="${st.mode === 'remove' ? 'on' : ''}">${t('food.modeRemove')}</button></div></div>
-        <div class="chips">${SLOTS.map((k) => html`<button class="chip" data-apply="${k}" ${st.sel.size && !st.busy ? '' : 'disabled'}>${t('menu.slot.' + k)}</button>`)}</div>
+        <div class="chips">${TAGS.map((k) => html`<button class="chip" data-apply="${k}" ${st.sel.size && !st.busy ? '' : 'disabled'}>${t('menu.slot.' + k)}</button>`)}</div>
         <div class="sel-foot"><button class="btn small" data-apply="clear" ${st.sel.size && !st.busy ? '' : 'disabled'}>${t('food.clearTags')}</button><button class="btn small ghost" id="sel-cancel">${t('common.cancel')}</button></div>
       </div>` : ''}`);
   };
@@ -213,7 +213,7 @@ async function renderRecipes(el) {
     for (const r of recipes.filter((x) => st.sel.has(x.id))) {
       const cur = new Set(tagsOf(r));
       if (tag === 'clear') cur.clear(); else if (st.mode === 'add') cur.add(tag); else cur.delete(tag);
-      const next = SLOTS.filter((k) => cur.has(k));
+      const next = TAGS.filter((k) => cur.has(k));
       const key = next.join(',');
       if (!groups.has(key)) groups.set(key, { next, ids: [] });
       groups.get(key).ids.push(r.id);
@@ -283,7 +283,7 @@ function builder(el, { mode, init, onSubmit }) {
           <label class="field"><span>${t('food.fat')} / 100 g</span><input type="number" step="any" inputmode="decimal" id="m-f"></label>
           <button type="button" class="btn" id="m-add">${t('food.addIngredient')}</button></div>` : ''}
       </div>
-      ${mode === 'recipe' ? html`<div class="field"><span>${t('menu.tagsLabel')}</span><div class="chips" id="b-tags">${SLOTS.map((k) => html`<button type="button" class="chip ${state.tags.has(k) ? 'on' : ''}" data-tag="${k}">${t('menu.slot.' + k)}</button>`)}</div><p class="tiny muted">${t('menu.tagsHelp')}</p></div>` : ''}
+      ${mode === 'recipe' ? html`<div class="field"><span>${t('menu.tagsLabel')}</span><div class="chips" id="b-tags">${TAGS.map((k) => html`<button type="button" class="chip ${state.tags.has(k) ? 'on' : ''}" data-tag="${k}">${t('menu.slot.' + k)}</button>`)}</div><p class="tiny muted">${t('menu.tagsHelp')}</p></div>` : ''}
       ${mode === 'meal' ? html`<label class="check"><input type="checkbox" id="b-save" ${state.saveRecipe ? 'checked' : ''}> ${t('food.saveAsRecipe')}</label>` : ''}
       <div class="form-actions"><button type="button" class="btn primary" id="b-ok">${t(mode === 'recipe' ? 'common.save' : 'food.addToDay')}</button></div>`);
     drawTotals();
@@ -347,7 +347,7 @@ function builder(el, { mode, init, onSubmit }) {
     if (!name && (mode === 'recipe' || state.saveRecipe)) { toast(t('food.needName'), 'error'); return; }
     if (!name) name = state.items.slice(0, 3).map((i) => i.name.split('(')[0].trim()).join(', ');
     btn.disabled = true;
-    try { await onSubmit({ name, items: state.items, saveRecipe: state.saveRecipe, mealTypes: SLOTS.filter((k) => state.tags.has(k)) }); } catch (err) { btn.disabled = false; fail(err); }
+    try { await onSubmit({ name, items: state.items, saveRecipe: state.saveRecipe, mealTypes: TAGS.filter((k) => state.tags.has(k)) }); } catch (err) { btn.disabled = false; fail(err); }
   });
   draw();
 }

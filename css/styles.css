@@ -295,6 +295,8 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .slot-name { display: block; margin-top: 4px; }
 .slot-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .slot-actions .btn.primary { margin-left: auto; }
+.slot-side { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line, rgba(128,128,128,.35)); }
+.side-actions { margin-top: 6px; }
 .plan-line { padding: 10px 14px; }
 
 /* ---- completar kcal/macros ---- */

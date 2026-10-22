@@ -35,6 +35,7 @@ js/foods-db.js      tabla propia de ~150 ingredientes habituales (kcal y macros 
 js/estimate.js      completa kcal/macros que faltan: tabla propia y, si no, Open Food Facts
 js/views/food-tools.js  pantallas de importar recetas, repetir comidas y menú del día
 supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
+supabase/04-guarniciones.sql   (v9) añade la etiqueta «guarnición» a esa lista
 ```
 
 ## Puesta en marcha (una sola vez)
@@ -48,6 +49,8 @@ supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 5. **Instalar.** Menú ⋮ de Chrome → *Instalar app* (o *Añadir a la pantalla de inicio*). Mejor haz el primer inicio de sesión desde Chrome *antes* de instalar.
 
 **Si ya tenías la base de datos creada antes de la v6:** ejecuta además `supabase/03-menu.sql` (SQL Editor → pegar → Run). Sin él todo funciona, pero las recetas no guardan sus etiquetas (desayuno/comida/merienda/cena).
+
+**Para la etiqueta «guarnición» (v9):** ejecuta también `supabase/04-guarniciones.sql` (después del 03). Sin él, al etiquetar una receta como guarnición la base de datos la rechaza.
 
 Si Google devuelve `redirect_uri_mismatch`, espera unos minutos (Google tarda en aplicar los cambios) y revisa que la URI de redirección sea exactamente
 `https://nxcyupxvkygghlwpboge.supabase.co/auth/v1/callback`.

@@ -4,7 +4,7 @@ import { totals, itemTotals } from '../off.js';
 import { completeItems } from '../estimate.js';
 import { csvTemplate, parseCsv, decodeCsv, buildRecipes, normName } from '../recipe-import.js';
 import { readXlsx } from '../xlsx-read.js';
-import { suggest, describe, sumSlots, SLOTS } from '../menu.js';
+import { suggest, describe, sumSlots, mealPayload, SLOTS, TAGS } from '../menu.js';
 import { html, raw, setHtml, on, openModal, spinner, addDays, dateLong, num, toNum, fail, toast, refresh, navigate } from '../util.js';
 import { t } from '../i18n.js';
 
@@ -128,7 +128,7 @@ export function openImport(existing) {
               <span class="imp-badge ${isNew ? 'new' : 'upd'}">${isNew ? t('imp.new') : t('imp.update')}</span></summary>
             <div class="imp-rec-opts">
               <label class="serv"><span>${t('imp.servLabel')}</span><input type="number" min="1" max="50" step="any" inputmode="decimal" data-sv value="${sv}"></label>
-              <div class="chips">${SLOTS.map((k) => html`<button type="button" class="chip ${r.meal_types.includes(k) ? 'on' : ''}" data-rtag="${k}">${slotName(k)}</button>`)}</div>
+              <div class="chips">${TAGS.map((k) => html`<button type="button" class="chip ${r.meal_types.includes(k) ? 'on' : ''}" data-rtag="${k}">${slotName(k)}</button>`)}</div>
             </div>
             <div class="imp-ings">${r.items.map((it, ii) => html`<div class="imp-ing" data-r="${ri}" data-i="${ii}">
               <div class="imp-ing-head"><span class="grow"><strong>${it.name}</strong> <span class="muted small">${num(it.grams / sv, 0)} g · ${num(itemTotals(it).kcal / sv, 0)} kcal</span></span>
@@ -155,7 +155,7 @@ export function openImport(existing) {
     const r = st.result.recipes[Number(b.closest('.imp-rec').dataset.r)];
     const set = new Set(r.meal_types);
     if (set.has(b.dataset.rtag)) set.delete(b.dataset.rtag); else set.add(b.dataset.rtag);
-    r.meal_types = SLOTS.filter((k) => set.has(k));
+    r.meal_types = TAGS.filter((k) => set.has(k));
     draw();
   });
   on(box, 'change', '.est-grid input', (e, inp) => {
@@ -244,7 +244,7 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
   }
 
   const byId = new Map(recipes.map((r) => [r.id, r]));
-  const key = `menu_${session.user ? session.user.id : 'anon'}_${date}`;
+  const key = `menu2_${session.user ? session.user.id : 'anon'}_${date}`;
   const eaten = () => eatenMeals.reduce((s, x) => ({ kcal: s.kcal + Number(x.kcal || 0), protein: s.protein + Number(x.protein_g || 0) }), { kcal: 0, protein: 0 });
   const openSlots = () => SLOTS.filter((s) => !eatenMeals.some((x) => x.meal_type === s));
   const remaining = () => goalPlan.target - eaten().kcal;
@@ -254,7 +254,12 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
   const saved = loadSaved(key);
   if (saved && Array.isArray(saved.slots)) {
     slots = saved.slots.filter((s) => openSlots().includes(s.slot));
-    slots.forEach((s) => { s.opts = (s.opts || []).filter(([id]) => byId.has(id)); if (s.i >= s.opts.length) s.i = 0; });
+    slots.forEach((s) => {
+      s.opts = (s.opts || []).filter(([id]) => byId.has(id)); if (s.i >= s.opts.length) s.i = 0;
+      const cur = s.sideOpts && s.si >= 0 ? s.sideOpts[s.si] : null;
+      s.sideOpts = (s.sideOpts || []).filter((id) => byId.has(id));
+      s.si = cur && s.sideOpts.includes(cur) ? s.sideOpts.indexOf(cur) : -1;
+    });
     if (openSlots().some((s) => !slots.some((x) => x.slot === s))) generate();
   } else generate();
 
@@ -277,6 +282,13 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
           <div class="slot-head"><h3>${slotName(s.slot)}</h3><span class="muted small">${t('menu.target', { n: num(s.target, 0) })}</span></div>
           ${d ? html`<strong class="slot-name">${d.recipe.name}</strong>
             <div class="muted small">× ${num(d.factor, 2)} · <b>${num(d.tt.kcal, 0)} kcal</b> · P ${num(d.tt.protein, 0)} · C ${num(d.tt.carbs, 0)} · G ${num(d.tt.fat, 0)}</div>
+            ${d.side ? html`<div class="slot-side"><span class="tag">${t('menu.slot.side')}</span> <strong>${d.side.recipe.name}</strong>
+              <div class="muted small">${t('menu.sideWhole')} · <b>${num(d.side.tt.kcal, 0)} kcal</b> · P ${num(d.side.tt.protein, 0)} · C ${num(d.side.tt.carbs, 0)} · G ${num(d.side.tt.fat, 0)}</div></div>` : ''}
+            ${s.sideOpts && s.sideOpts.length ? html`<div class="slot-actions side-actions">
+              <button class="btn small ghost" data-side-change ${s.sideOpts.length > 1 || s.si < 0 ? '' : 'disabled'}>${t('menu.sideChange')}</button>
+              <button class="btn small ghost" data-side-off>${s.si >= 0 ? t('menu.sideRemove') : t('menu.sideAdd')}</button>
+            </div>` : ''}
+            ${d.side ? html`<div class="small"><b>${t('menu.slotTotal', { n: num(d.total.kcal, 0) })}</b></div>` : ''}
             <div class="slot-actions">
               <button class="btn small" data-less aria-label="${t('menu.less')}">−</button><button class="btn small" data-more aria-label="${t('menu.more')}">+</button>
               <button class="btn small ghost" data-change ${s.opts.length > 1 ? '' : 'disabled'}>${t('menu.change')}</button>
@@ -293,7 +305,7 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
   const mealFor = (s) => {
     const d = describe(s, byId);
     if (!d) return null;
-    return { date, meal_type: s.slot, name: d.recipe.name, recipe_id: d.recipe.id, factor: d.factor, items: d.recipe.items, kcal: d.tt.kcal, protein_g: d.tt.protein, carbs_g: d.tt.carbs, fat_g: d.tt.fat };
+    return { date, meal_type: s.slot, ...mealPayload(d) };
   };
   const done = (rows) => {
     rows.forEach((r) => eatenMeals.push(r));
@@ -303,6 +315,9 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
   on(box, 'click', '[data-more]', (e, b) => { const s = slotOf(b); const d = describe(s, byId); s.f = Math.min(3, (d.factor || 1) + 0.25); store(key, { slots }); draw(); });
   on(box, 'click', '[data-less]', (e, b) => { const s = slotOf(b); const d = describe(s, byId); s.f = Math.max(0.25, (d.factor || 1) - 0.25); store(key, { slots }); draw(); });
   on(box, 'click', '[data-change]', (e, b) => { const s = slotOf(b); s.i = (s.i + 1) % s.opts.length; s.f = null; store(key, { slots }); draw(); });
+  // Guarnición: cambiar por otra, o quitarla / ponerla. Al cambiarla, la ración del principal se recalcula.
+  on(box, 'click', '[data-side-change]', (e, b) => { const s = slotOf(b); s.si = (s.si + 1) % s.sideOpts.length; s.f = null; store(key, { slots }); draw(); });
+  on(box, 'click', '[data-side-off]', (e, b) => { const s = slotOf(b); s.si = s.si >= 0 ? -1 : 0; s.f = null; store(key, { slots }); draw(); });
   on(box, 'click', '[data-eat]', async (e, b) => {
     const s = slotOf(b); const row = mealFor(s);
     if (!row) return;

@@ -7,3 +7,4 @@
 alter table public.recipes
   add column if not exists meal_types text[] not null default '{}'               -- cuándo se come: breakfast, lunch, snack, dinner
   check (meal_types <@ array['breakfast', 'lunch', 'snack', 'dinner']::text[]);
+-- (En la v9, 04-guarniciones.sql amplía esta lista con 'side' = guarnición.)
