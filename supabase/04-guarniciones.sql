@@ -8,3 +8,4 @@ alter table public.recipes drop constraint if exists recipes_meal_types_check;
 alter table public.recipes
   add constraint recipes_meal_types_check
   check (meal_types <@ array['breakfast', 'lunch', 'snack', 'dinner', 'side']::text[]);
+-- (En la v10, 05-primeros.sql amplía esta lista con 'starter' = primer plato; el 05 ya incluye lo del 04.)

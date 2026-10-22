@@ -37,6 +37,7 @@ js/estimate.js      completa kcal/macros que faltan: tabla propia y, si no, Open
 js/views/food-tools.js  pantallas de importar recetas, repetir comidas y menú del día
 supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 supabase/04-guarniciones.sql   (v9) añade la etiqueta «guarnición» a esa lista
+supabase/05-primeros.sql   (v10) añade la etiqueta «primer plato» (incluye lo del 04)
 ```
 
 ## Puesta en marcha (una sola vez)
@@ -51,7 +52,7 @@ supabase/04-guarniciones.sql   (v9) añade la etiqueta «guarnición» a esa lis
 
 **Si ya tenías la base de datos creada antes de la v6:** ejecuta además `supabase/03-menu.sql` (SQL Editor → pegar → Run). Sin él todo funciona, pero las recetas no guardan sus etiquetas (desayuno/comida/merienda/cena).
 
-**Para la etiqueta «guarnición» (v9):** ejecuta también `supabase/04-guarniciones.sql` (después del 03). Sin él, al etiquetar una receta como guarnición la base de datos la rechaza.
+**Para las etiquetas «guarnición» (v9) y «primer plato» (v10):** ejecuta también `supabase/05-primeros.sql` (después del 03; ya incluye lo del 04). Sin él, al etiquetar una receta como guarnición o primer plato la base de datos la rechaza.
 
 Si Google devuelve `redirect_uri_mismatch`, espera unos minutos (Google tarda en aplicar los cambios) y revisa que la URI de redirección sea exactamente
 `https://nxcyupxvkygghlwpboge.supabase.co/auth/v1/callback`.

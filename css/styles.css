@@ -311,6 +311,11 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .est-grid label span { display: block; font-size: .7rem; color: var(--muted); font-weight: 600; }
 .est-grid input { width: 100%; min-width: 0; min-height: 36px; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
 .tag.warn { background: color-mix(in srgb, var(--orange) 18%, var(--surface)); color: var(--orange); }
+.tag.bad { background: color-mix(in srgb, var(--red) 16%, var(--surface)); color: var(--red); }
+.imp-rec.has-miss > summary { border-left: 4px solid var(--red); padding-left: 10px; }
+.imp-ing.miss { border-left-color: var(--red); background: color-mix(in srgb, var(--red) 8%, var(--surface)); border-radius: 0 10px 10px 0; }
+.imp-ing.miss .est-grid input { border-color: var(--red); }
+.pend-names { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
 .tag.est { background: color-mix(in srgb, var(--yellow) 22%, var(--surface)); color: var(--text); }
 .est-flag { color: var(--orange); font-weight: 600; }
 .note.warn .btn { margin-top: 4px; }
@@ -337,6 +342,6 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .sel-bar .chips { margin: 0 0 8px; }
 .sel-bar .chip[disabled] { opacity: .45; }
 .sel-foot { display: flex; gap: 8px; justify-content: space-between; }
-.sel-bar .chips { flex-wrap: nowrap; gap: 6px; }
-.sel-bar .chip { padding: 0 10px; font-size: .85rem; flex: 1; justify-content: center; }
+.sel-bar .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; } /* 6 etiquetas: 3 por fila para que quepan en el móvil */
+.sel-bar .chip { padding: 0 6px; font-size: .85rem; justify-content: center; min-width: 0; white-space: nowrap; }
 .sel-dot { box-sizing: border-box; margin-right: 10px; }

@@ -4,7 +4,7 @@
 // Las columnas sin "100" (kcal, proteína...) se entienden como el total para los gramos de esa fila.
 // También vale UNA FILA POR RECETA con los totales de una ración: receta | tipo | kcal | proteinas | hidratos | grasas.
 
-export const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner', 'side'];
+export const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner', 'starter', 'side'];
 const MAX_RECIPES = 500, MAX_ITEMS = 60;
 
 const strip = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -80,6 +80,7 @@ export function parseSlots(v) {
     else if (/^(comida|almuerzo|lunch)$/.test(k)) out.add('lunch');
     else if (/^(merienda|snack|mediamanana|tentempie|aperitivo)$/.test(k)) out.add('snack');
     else if (/^(cena|dinner|supper)$/.test(k)) out.add('dinner');
+    else if (/^(primero|primeros|primerplato|primerosplatos|entrante|entrantes|starter|starters|firstcourse)$/.test(k)) out.add('starter');
     else if (/^(guarnicion|guarniciones|acompanamiento|acompanante|side|sidedish|garnish)$/.test(k)) out.add('side');
     else bad.push(raw.trim());
   }
@@ -138,7 +139,7 @@ export function buildRecipes(table) {
       if (!seen.has(strip(nameCell))) seen.set(strip(nameCell), { name: nameCell, line });
       const sl = parseSlots(cell(r, col.types));
       curSlots = sl.slots;
-      if (sl.bad.length) warn(line, `tipo "${sl.bad.join(', ')}" no reconocido (usa desayuno, comida, merienda, cena o guarnición)`);
+      if (sl.bad.length) warn(line, `tipo "${sl.bad.join(', ')}" no reconocido (usa desayuno, comida, merienda, cena, primer plato o guarnición)`);
     } else if (col.types !== undefined) {
       const sl = parseSlots(cell(r, col.types));
       if (sl.slots.length) curSlots = [...new Set([...curSlots, ...sl.slots])];

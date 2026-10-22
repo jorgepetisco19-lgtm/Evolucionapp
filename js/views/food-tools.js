@@ -80,7 +80,7 @@ async function readTable(file) {
 export function openImport(existing) {
   const byName = new Map();
   existing.forEach((r) => { if (!byName.has(normName(r.name))) byName.set(normName(r.name), r); });
-  const st = { stage: 'pick', busy: false, error: '', result: null, fileName: '', open: new Set(), progress: null, report: null };
+  const st = { stage: 'pick', busy: false, error: '', result: null, fileName: '', open: new Set(), progress: null, report: null, onlyPend: false };
   const m = openModal(html`<div id="im"></div>`, { title: t('imp.title'), wide: true });
   const box = m.body.querySelector('#im');
   const draw = () => {
@@ -101,6 +101,11 @@ export function openImport(existing) {
       const w = st.result.warnings;
       const all = rs.flatMap((r) => r.items);
       const nMissing = all.filter((i) => i.missing).length;
+      // Recetas con ingredientes que siguen sin datos (tras "Completar" o si no se ha pulsado), para marcarlas y poder filtrarlas.
+      const pend = rs.map((r, ri) => ({ ri, n: r.items.filter((i) => i.missing).length })).filter((x) => x.n);
+      const pendSet = new Set(pend.map((x) => x.ri));
+      const pendNames = [...new Set(all.filter((i) => i.missing).map((i) => i.name))];
+      if (!pend.length) st.onlyPend = false;
       const nEst = all.filter((i) => i.est).length;
       const nBig = rs.filter((r) => servOf(r) === 1 && totals(r.items, 1).kcal > BIG_KCAL).length;
       const nUntag = rs.filter((r) => !r.meal_types.length && !((byName.get(normName(r.name)) || {}).meal_types || []).length).length;
@@ -115,22 +120,28 @@ export function openImport(existing) {
           <button class="btn small primary" id="im-complete" ${st.busy ? 'disabled' : ''}>${t('imp.complete')}</button></div>` : ''}
         ${st.progress ? html`<div id="im-prog">${spinner(t('imp.completing', st.progress))}</div>` : ''}
         ${st.report ? html`<p class="note">${t('imp.completed', st.report)}</p>` : ''}
+        ${st.report && pend.length ? html`<div class="note warn pend"><strong>${t('imp.pendTitle', { n: nMissing, r: pend.length })}</strong>
+          <div class="pend-names">${pendNames.slice(0, 12).map((n) => html`<span class="tag bad">${n}</span>`)}${pendNames.length > 12 ? html`<span class="muted small">${t('imp.andMore', { n: pendNames.length - 12 })}</span>` : ''}</div>
+          <p class="small">${t('imp.pendHelp')}</p>
+          <button class="btn small" id="im-only">${st.onlyPend ? t('imp.showAll') : t('imp.onlyPend')}</button></div>` : ''}
         ${nEst ? html`<p class="muted small">${t('imp.estHelp')}</p>` : ''}
         <div class="list imp-list">${rs.map((r, ri) => {
+          if (st.onlyPend && !pendSet.has(ri)) return '';
           const sv = servOf(r);
+          const nPend = r.items.filter((i) => i.missing).length;
           const tt = totals(r.items, 1 / sv);
           const big = sv === 1 && tt.kcal > BIG_KCAL;
           const isNew = !byName.has(normName(r.name));
-          return html`<details class="imp-rec" data-r="${ri}" ${st.open.has(ri) ? 'open' : ''}>
+          return html`<details class="imp-rec ${nPend ? 'has-miss' : ''}" data-r="${ri}" ${st.open.has(ri) ? 'open' : ''}>
             <summary class="row static"><div class="grow"><strong>${r.name}</strong>
               <div class="muted small">${t('imp.items', { n: r.items.length })} · ${num(tt.kcal, 0)} kcal · P ${num(tt.protein, 0)} · C ${num(tt.carbs, 0)} · G ${num(tt.fat, 0)}</div>
-              <div class="tags">${r.meal_types.map((x) => html`<span class="tag">${slotName(x)}</span>`)}${sv > 1 ? html`<span class="tag est">÷ ${num(sv, 2)}</span>` : ''}${big ? html`<span class="tag warn">${t('imp.bigBadge')}</span>` : ''}</div></div>
+              <div class="tags">${r.meal_types.map((x) => html`<span class="tag">${slotName(x)}</span>`)}${sv > 1 ? html`<span class="tag est">÷ ${num(sv, 2)}</span>` : ''}${big ? html`<span class="tag warn">${t('imp.bigBadge')}</span>` : ''}${nPend ? html`<span class="tag bad">${t('imp.pendBadge', { n: nPend })}</span>` : ''}</div></div>
               <span class="imp-badge ${isNew ? 'new' : 'upd'}">${isNew ? t('imp.new') : t('imp.update')}</span></summary>
             <div class="imp-rec-opts">
               <label class="serv"><span>${t('imp.servLabel')}</span><input type="number" min="1" max="50" step="any" inputmode="decimal" data-sv value="${sv}"></label>
               <div class="chips">${TAGS.map((k) => html`<button type="button" class="chip ${r.meal_types.includes(k) ? 'on' : ''}" data-rtag="${k}">${slotName(k)}</button>`)}</div>
             </div>
-            <div class="imp-ings">${r.items.map((it, ii) => html`<div class="imp-ing" data-r="${ri}" data-i="${ii}">
+            <div class="imp-ings">${r.items.map((it, ii) => html`<div class="imp-ing ${it.missing ? 'miss' : ''}" data-r="${ri}" data-i="${ii}">
               <div class="imp-ing-head"><span class="grow"><strong>${it.name}</strong> <span class="muted small">${num(it.grams / sv, 0)} g · ${num(itemTotals(it).kcal / sv, 0)} kcal</span></span>
                 ${it.missing ? html`<span class="tag warn">${t('imp.noData')}</span>` : it.est ? html`<span class="tag est">${t('imp.est.' + it.est)}</span>` : ''}</div>
               ${it.missing || it.est ? html`<p class="tiny muted">${t('imp.per100')}</p><div class="est-grid">${field(it, 'kcal100', 'kcal')}${field(it, 'p100', 'P')}${field(it, 'c100', 'C')}${field(it, 'f100', 'G')}</div>` : ''}
@@ -171,7 +182,17 @@ export function openImport(existing) {
     try {
       st.report = await completeItems(items, { onProgress: (i, n) => { st.progress = { i, n }; const el = box.querySelector('#im-prog'); if (el) setHtml(el, spinner(t('imp.completing', st.progress))); } });
     } catch (err) { fail(err); }
-    st.busy = false; st.progress = null; draw();
+    st.busy = false; st.progress = null;
+    // Si quedan ingredientes sin datos, se enseñan directamente solo esas recetas, ya abiertas.
+    st.result.recipes.forEach((r, ri) => { if (r.items.some((i) => i.missing)) { st.onlyPend = true; st.open.add(ri); } });
+    draw();
+    const pendEl = box.querySelector('.pend');
+    if (pendEl) pendEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+  on(box, 'click', '#im-only', () => {
+    st.onlyPend = !st.onlyPend;
+    if (st.onlyPend) st.result.recipes.forEach((r, ri) => { if (r.items.some((i) => i.missing)) st.open.add(ri); });
+    draw();
   });
   on(box, 'click', '#im-tpl', () => download('plantilla-recetas.csv', csvTemplate(), 'text/csv;charset=utf-8'));
   on(box, 'click', '#im-pick', () => box.querySelector('#im-file').click());
@@ -244,7 +265,7 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
   }
 
   const byId = new Map(recipes.map((r) => [r.id, r]));
-  const key = `menu2_${session.user ? session.user.id : 'anon'}_${date}`;
+  const key = `menu3_${session.user ? session.user.id : 'anon'}_${date}`;
   const eaten = () => eatenMeals.reduce((s, x) => ({ kcal: s.kcal + Number(x.kcal || 0), protein: s.protein + Number(x.protein_g || 0) }), { kcal: 0, protein: 0 });
   const openSlots = () => SLOTS.filter((s) => !eatenMeals.some((x) => x.meal_type === s));
   const remaining = () => goalPlan.target - eaten().kcal;
@@ -256,13 +277,27 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
     slots = saved.slots.filter((s) => openSlots().includes(s.slot));
     slots.forEach((s) => {
       s.opts = (s.opts || []).filter(([id]) => byId.has(id)); if (s.i >= s.opts.length) s.i = 0;
-      const cur = s.sideOpts && s.si >= 0 ? s.sideOpts[s.si] : null;
-      s.sideOpts = (s.sideOpts || []).filter((id) => byId.has(id));
-      s.si = cur && s.sideOpts.includes(cur) ? s.sideOpts.indexOf(cur) : -1;
+      for (const [optsKey, idxKey] of [['sideOpts', 'si'], ['starterOpts', 'ti']]) {
+        const cur = s[optsKey] && s[idxKey] >= 0 ? s[optsKey][s[idxKey]] : null;
+        s[optsKey] = (s[optsKey] || []).filter((id) => byId.has(id));
+        s[idxKey] = cur && s[optsKey].includes(cur) ? s[optsKey].indexOf(cur) : -1;
+      }
     });
     if (openSlots().some((s) => !slots.some((x) => x.slot === s))) generate();
   } else generate();
 
+  // Primer plato o guarnición de una toma: el plato entero con sus botones (cambiar / quitar / poner).
+  const extra = (kind, s, d) => {
+    const opts = kind === 'starter' ? s.starterOpts : s.sideOpts;
+    const x = d[kind];
+    if (!opts || !opts.length) return '';
+    return html`${x ? html`<div class="slot-side ${kind}"><span class="tag">${t('menu.slot.' + kind)}</span> <strong>${x.recipe.name}</strong>
+        <div class="muted small">${t('menu.sideWhole')} · <b>${num(x.tt.kcal, 0)} kcal</b> · P ${num(x.tt.protein, 0)} · C ${num(x.tt.carbs, 0)} · G ${num(x.tt.fat, 0)}</div></div>` : ''}
+      <div class="slot-actions side-actions">
+        ${x ? html`<button class="btn small ghost" data-${kind}-change ${opts.length > 1 ? '' : 'disabled'}>${t('menu.' + kind + 'Change')}</button>` : ''}
+        <button class="btn small ghost" data-${kind}-off>${x ? t('menu.' + kind + 'Remove') : t('menu.' + kind + 'Add')}</button>
+      </div>`;
+  };
   const draw = () => {
     const left = remaining();
     if (!openSlots().length || slots.length === 0) {
@@ -280,15 +315,11 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
         const d = describe(s, byId);
         return html`<div class="card slot" data-slot="${s.slot}">
           <div class="slot-head"><h3>${slotName(s.slot)}</h3><span class="muted small">${t('menu.target', { n: num(s.target, 0) })}</span></div>
-          ${d ? html`<strong class="slot-name">${d.recipe.name}</strong>
+          ${d ? html`${extra('starter', s, d)}
+            <strong class="slot-name">${d.recipe.name}</strong>
             <div class="muted small">× ${num(d.factor, 2)} · <b>${num(d.tt.kcal, 0)} kcal</b> · P ${num(d.tt.protein, 0)} · C ${num(d.tt.carbs, 0)} · G ${num(d.tt.fat, 0)}</div>
-            ${d.side ? html`<div class="slot-side"><span class="tag">${t('menu.slot.side')}</span> <strong>${d.side.recipe.name}</strong>
-              <div class="muted small">${t('menu.sideWhole')} · <b>${num(d.side.tt.kcal, 0)} kcal</b> · P ${num(d.side.tt.protein, 0)} · C ${num(d.side.tt.carbs, 0)} · G ${num(d.side.tt.fat, 0)}</div></div>` : ''}
-            ${s.sideOpts && s.sideOpts.length ? html`<div class="slot-actions side-actions">
-              <button class="btn small ghost" data-side-change ${s.sideOpts.length > 1 || s.si < 0 ? '' : 'disabled'}>${t('menu.sideChange')}</button>
-              <button class="btn small ghost" data-side-off>${s.si >= 0 ? t('menu.sideRemove') : t('menu.sideAdd')}</button>
-            </div>` : ''}
-            ${d.side ? html`<div class="small"><b>${t('menu.slotTotal', { n: num(d.total.kcal, 0) })}</b></div>` : ''}
+            ${extra('side', s, d)}
+            ${d.side || d.starter ? html`<div class="small"><b>${t('menu.slotTotal', { n: num(d.total.kcal, 0) })}</b></div>` : ''}
             <div class="slot-actions">
               <button class="btn small" data-less aria-label="${t('menu.less')}">−</button><button class="btn small" data-more aria-label="${t('menu.more')}">+</button>
               <button class="btn small ghost" data-change ${s.opts.length > 1 ? '' : 'disabled'}>${t('menu.change')}</button>
@@ -315,9 +346,11 @@ export function openSuggest({ date, meals, recipes, goalPlan }) {
   on(box, 'click', '[data-more]', (e, b) => { const s = slotOf(b); const d = describe(s, byId); s.f = Math.min(3, (d.factor || 1) + 0.25); store(key, { slots }); draw(); });
   on(box, 'click', '[data-less]', (e, b) => { const s = slotOf(b); const d = describe(s, byId); s.f = Math.max(0.25, (d.factor || 1) - 0.25); store(key, { slots }); draw(); });
   on(box, 'click', '[data-change]', (e, b) => { const s = slotOf(b); s.i = (s.i + 1) % s.opts.length; s.f = null; store(key, { slots }); draw(); });
-  // Guarnición: cambiar por otra, o quitarla / ponerla. Al cambiarla, la ración del principal se recalcula.
-  on(box, 'click', '[data-side-change]', (e, b) => { const s = slotOf(b); s.si = (s.si + 1) % s.sideOpts.length; s.f = null; store(key, { slots }); draw(); });
-  on(box, 'click', '[data-side-off]', (e, b) => { const s = slotOf(b); s.si = s.si >= 0 ? -1 : 0; s.f = null; store(key, { slots }); draw(); });
+  // Primer plato y guarnición: cambiar por otro, o quitarlo / ponerlo. Al tocarlos, la ración del principal se recalcula.
+  for (const [kind, optsKey, idxKey] of [['side', 'sideOpts', 'si'], ['starter', 'starterOpts', 'ti']]) {
+    on(box, 'click', `[data-${kind}-change]`, (e, b) => { const s = slotOf(b); s[idxKey] = (s[idxKey] + 1) % s[optsKey].length; s.f = null; store(key, { slots }); draw(); });
+    on(box, 'click', `[data-${kind}-off]`, (e, b) => { const s = slotOf(b); s[idxKey] = s[idxKey] >= 0 ? -1 : 0; s.f = null; store(key, { slots }); draw(); });
+  }
   on(box, 'click', '[data-eat]', async (e, b) => {
     const s = slotOf(b); const row = mealFor(s);
     if (!row) return;

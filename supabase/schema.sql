@@ -85,11 +85,11 @@ create table if not exists public.recipes (
   created_at timestamptz not null default now()
 );
 alter table public.recipes
-  add column if not exists meal_types text[] not null default '{}';              -- cuándo se come: breakfast, lunch, snack, dinner; o 'side' (guarnición)
+  add column if not exists meal_types text[] not null default '{}';              -- cuándo se come: breakfast, lunch, snack, dinner; 'starter' (primer plato) o 'side' (guarnición)
 alter table public.recipes drop constraint if exists recipes_meal_types_check;
 alter table public.recipes
   add constraint recipes_meal_types_check
-  check (meal_types <@ array['breakfast', 'lunch', 'snack', 'dinner', 'side']::text[]);
+  check (meal_types <@ array['breakfast', 'lunch', 'snack', 'dinner', 'starter', 'side']::text[]);
 
 -- ---------- Comidas registradas ----------
 create table if not exists public.meals (
