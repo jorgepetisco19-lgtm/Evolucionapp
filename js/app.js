@@ -153,6 +153,13 @@ async function boot() {
 // ---------- PWA ----------
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__installPrompt = e; });
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  const hadController = !!navigator.serviceWorker.controller;
+  // Cuando se instala una versión nueva, se recarga sola para no tener que abrir la app dos veces
+  // (salvo que haya una ventana abierta o estés escribiendo, para no perder lo que llevas).
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+    if (hadController && !typing && !document.querySelector('.modal, .tour')) location.reload();
+  });
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
 }
 
