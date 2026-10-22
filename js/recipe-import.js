@@ -92,8 +92,14 @@ export function buildRecipes(table) {
   const warnings = [];
   const warn = (row, text) => warnings.push({ row, text });
   const rows = (table || []).map((r) => (r || []).map((c) => (typeof c === 'string' ? c.trim() : c)));
-  const hi = rows.findIndex((r) => r.some((c) => c !== '' && c != null));
-  if (hi < 0) return { layout: null, recipes: [], warnings, error: 'empty' };
+  const first = rows.findIndex((r) => r.some((c) => c !== '' && c != null));
+  if (first < 0) return { layout: null, recipes: [], warnings, error: 'empty' };
+  // La fila de cabeceras no tiene por qué ser la primera: muchos Excel llevan un título o notas encima.
+  let hi = first;
+  for (let i = first; i < Math.min(rows.length, first + 30); i++) {
+    const ks = new Set(rows[i].map(classify).filter(Boolean));
+    if (ks.has('recipe') && ['ingredient', 'kcal', 'kcal100'].some((k) => ks.has(k))) { hi = i; break; }
+  }
   const col = {};
   rows[hi].forEach((h, i) => { const k = classify(h); if (k && col[k] === undefined) col[k] = i; });
   const kcalCol = col.kcal100 ?? col.kcal, pCol = col.p100 ?? col.p, cCol = col.c100 ?? col.c, fCol = col.f100 ?? col.f;
