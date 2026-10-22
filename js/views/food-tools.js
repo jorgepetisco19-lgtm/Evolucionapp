@@ -100,11 +100,13 @@ export function openImport(existing) {
       const nNew = rs.filter((r) => !byName.has(normName(r.name))).length;
       const w = st.result.warnings;
       const all = rs.flatMap((r) => r.items);
-      const nMissing = all.filter((i) => i.missing).length;
+      const nMissing = new Set(all.filter((i) => i.missing).map((i) => normName(i.name))).size; // ingredientes DISTINTOS sin datos
+      const sameCount = new Map();
+      all.forEach((i) => sameCount.set(normName(i.name), (sameCount.get(normName(i.name)) || 0) + 1));
       // Recetas con ingredientes que siguen sin datos (tras "Completar" o si no se ha pulsado), para marcarlas y poder filtrarlas.
       const pend = rs.map((r, ri) => ({ ri, n: r.items.filter((i) => i.missing).length })).filter((x) => x.n);
       const pendSet = new Set(pend.map((x) => x.ri));
-      const pendNames = [...new Set(all.filter((i) => i.missing).map((i) => i.name))];
+      const pendNames = [...new Map(all.filter((i) => i.missing).map((i) => [normName(i.name), i.name])).values()];
       if (!pend.length) st.onlyPend = false;
       const nEst = all.filter((i) => i.est).length;
       const nBig = rs.filter((r) => servOf(r) === 1 && totals(r.items, 1).kcal > BIG_KCAL).length;
@@ -120,7 +122,7 @@ export function openImport(existing) {
           <button class="btn small primary" id="im-complete" ${st.busy ? 'disabled' : ''}>${t('imp.complete')}</button></div>` : ''}
         ${st.progress ? html`<div id="im-prog">${spinner(t('imp.completing', st.progress))}</div>` : ''}
         ${st.report ? html`<p class="note">${t('imp.completed', st.report)}</p>` : ''}
-        ${st.report && pend.length ? html`<div class="note warn pend"><strong>${t('imp.pendTitle', { n: nMissing, r: pend.length })}</strong>
+        ${st.report && pend.length ? html`<div class="note warn pend"><strong>${t('imp.pendTitle', { n: pendNames.length, r: pend.length })}</strong>
           <div class="pend-names">${pendNames.slice(0, 12).map((n) => html`<span class="tag bad">${n}</span>`)}${pendNames.length > 12 ? html`<span class="muted small">${t('imp.andMore', { n: pendNames.length - 12 })}</span>` : ''}</div>
           <p class="small">${t('imp.pendHelp')}</p>
           <button class="btn small" id="im-only">${st.onlyPend ? t('imp.showAll') : t('imp.onlyPend')}</button></div>` : ''}
@@ -143,8 +145,8 @@ export function openImport(existing) {
             </div>
             <div class="imp-ings">${r.items.map((it, ii) => html`<div class="imp-ing ${it.missing ? 'miss' : ''}" data-r="${ri}" data-i="${ii}">
               <div class="imp-ing-head"><span class="grow"><strong>${it.name}</strong> <span class="muted small">${num(it.grams / sv, 0)} g · ${num(itemTotals(it).kcal / sv, 0)} kcal</span></span>
-                ${it.missing ? html`<span class="tag warn">${t('imp.noData')}</span>` : it.est ? html`<span class="tag est">${t('imp.est.' + it.est)}</span>` : ''}</div>
-              ${it.missing || it.est ? html`<p class="tiny muted">${t('imp.per100')}</p><div class="est-grid">${field(it, 'kcal100', 'kcal')}${field(it, 'p100', 'P')}${field(it, 'c100', 'C')}${field(it, 'f100', 'G')}</div>` : ''}
+                ${it.missing ? html`<span class="tag warn">${t('imp.noData')}</span>` : it.manual ? html`<span class="tag est">${t('imp.manualTag')}</span>` : it.est ? html`<span class="tag est">${t('imp.est.' + it.est)}</span>` : ''}</div>
+              ${it.missing || it.est || it.manual ? html`<p class="tiny muted">${t('imp.per100')}${sameCount.get(normName(it.name)) > 1 ? html` · ${t('imp.sameAll', { n: sameCount.get(normName(it.name)) - 1 })}` : ''}</p><div class="est-grid">${field(it, 'kcal100', 'kcal')}${field(it, 'p100', 'P')}${field(it, 'c100', 'C')}${field(it, 'f100', 'G')}</div>` : ''}
             </div>`)}</div></details>`;
         })}</div>
         ${w.length ? html`<details class="warn-box"><summary>${t('imp.warnings', { n: w.length })}</summary><ul>${w.slice(0, 12).map((x) => html`<li>${x.row ? t('imp.row', { n: x.row }) + ': ' : ''}${x.text}</li>`)}${w.length > 12 ? html`<li>${t('imp.more', { n: w.length - 12 })}</li>` : ''}</ul></details>` : ''}
@@ -172,8 +174,16 @@ export function openImport(existing) {
   on(box, 'change', '.est-grid input', (e, inp) => {
     const row = inp.closest('.imp-ing');
     const it = st.result.recipes[Number(row.dataset.r)].items[Number(row.dataset.i)];
-    it[inp.dataset.f] = toNum(inp.value) ?? 0;
-    if (it.missing && Number(inp.value) > 0) delete it.missing; // ya lo ha puesto la persona
+    const f = inp.dataset.f, v = toNum(inp.value) ?? 0;
+    // Lo que se escribe se copia a las demás líneas con el mismo ingrediente (las que faltaban, eran estimadas o ya se rellenaron así),
+    // salvo el campo que la persona haya escrito a mano en esa otra línea, para no pisarlo. Así no hay que repetirlo en cada receta.
+    const key = normName(it.name);
+    it.typed = { ...(it.typed || {}), [f]: true };
+    const same = st.result.recipes.flatMap((r) => r.items).filter((o) => o !== it && normName(o.name) === key && (o.missing || o.est || o.manual) && !(o.typed && o.typed[f]));
+    for (const x of [it, ...same]) {
+      x[f] = v;
+      if (v > 0) { delete x.missing; x.manual = true; } // ya lo ha puesto la persona
+    }
     draw();
   });
   on(box, 'click', '#im-complete', async () => {
@@ -213,7 +223,7 @@ export function openImport(existing) {
     try {
       const fresh = [], updates = [];
       // 'missing' es solo una marca de la vista previa; si la receta da varias raciones, se guarda UNA ración (gramos divididos).
-      const prep = (r) => r.items.map(({ missing: _m, ...it }) => (servOf(r) === 1 ? it : { ...it, grams: Math.round((it.grams / servOf(r)) * 10) / 10 }));
+      const prep = (r) => r.items.map(({ missing: _m, manual: _n, typed: _t, ...it }) => (servOf(r) === 1 ? it : { ...it, grams: Math.round((it.grams / servOf(r)) * 10) / 10 }));
       for (const r of st.result.recipes) {
         const old = byName.get(normName(r.name));
         if (old) updates.push([old, r]); else fresh.push(r);
