@@ -31,6 +31,8 @@ js/onboarding.js    tutorial de bienvenida y lista de primeros pasos
 js/recipe-import.js lee recetas de CSV/Excel (formatos, avisos, plantilla)
 js/xlsx-read.js     lector de .xlsx sin librerías
 js/menu.js          cálculo de la sugerencia de menú del día
+js/foods-db.js      tabla propia de ~150 ingredientes habituales (kcal y macros aproximados)
+js/estimate.js      completa kcal/macros que faltan: tabla propia y, si no, Open Food Facts
 js/views/food-tools.js  pantallas de importar recetas, repetir comidas y menú del día
 supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 ```

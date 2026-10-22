@@ -9,7 +9,7 @@ const SHELL = [
   'js/app.js', 'js/config.js', 'js/db.js', 'js/i18n.js', 'js/util.js', 'js/icons.js', 'js/calendar.js', 'js/charts.js',
   'js/fields.js', 'js/exercises.js', 'js/off.js', 'js/ocr.js', 'js/version.js', 'js/nutrition.js', 'js/plan.js', 'js/onboarding.js',
   'js/views/home.js', 'js/views/body.js', 'js/views/photos.js', 'js/views/compare.js', 'js/views/food.js', 'js/views/sport.js', 'js/views/settings.js', 'js/views/profile.js',
-  'js/views/food-tools.js', 'js/recipe-import.js', 'js/xlsx-read.js', 'js/menu.js',
+  'js/views/food-tools.js', 'js/recipe-import.js', 'js/xlsx-read.js', 'js/menu.js', 'js/foods-db.js', 'js/estimate.js',
   'vendor/supabase.js',
 ];
 
