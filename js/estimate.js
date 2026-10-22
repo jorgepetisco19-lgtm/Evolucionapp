@@ -3,6 +3,17 @@
 import { lookupFood, norm } from './foods-db.js';
 import { searchFoods } from './off.js';
 
+// Open Food Facts solo permite 10 búsquedas por minuto y por conexión (si te pasas, te bloquea): se va a un ritmo de una cada 6,5 s
+// y, si responde con error, se espera y se reintenta poco a poco. Los valores se pueden cambiar en pruebas.
+const gapMs = () => globalThis.__OFF_GAP_MS ?? 6500;
+const backoffMs = () => globalThis.__OFF_BACKOFF_MS ?? 30000;
+const sleep = (ms, signal) => new Promise((resolve) => {
+  if (!(ms > 0) || (signal && signal.aborted)) return resolve();
+  const timer = setTimeout(resolve, ms);
+  if (signal) signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+});
+export const OFF_GAP_MS = () => gapMs();
+
 const keyOf = (name) => norm(name).replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 const queryOf = (name) => String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -15,51 +26,90 @@ export function pickMedian(foods) {
   return { kcal100: mid.kcal100, p100: mid.p100, c100: mid.c100, f100: mid.f100, count: usable.length };
 }
 
-/** Devuelve { kcal100, p100, c100, f100, source: 'db' | 'off', note } o null. `search` se puede sustituir en pruebas. */
-export async function estimateOne(name, { search = searchFoods } = {}) {
+/**
+ * Estima un ingrediente y dice cómo ha ido: state = 'db' (tabla propia) | 'off' (Open Food Facts) |
+ * 'none' (Open Food Facts respondió pero no hay nada útil: no tiene sentido reintentar) | 'error' (sin conexión, límite, caído: sí se puede reintentar).
+ * `search` se puede sustituir en pruebas.
+ */
+export async function estimateDetailed(name, { search = searchFoods } = {}) {
   const hit = lookupFood(name);
-  if (hit) return { kcal100: hit.kcal100, p100: hit.p100, c100: hit.c100, f100: hit.f100, source: 'db', note: hit.key };
+  if (hit) return { state: 'db', est: { kcal100: hit.kcal100, p100: hit.p100, c100: hit.c100, f100: hit.f100, source: 'db', note: hit.key } };
   const q = queryOf(name);
-  if (q.length < 2) return null;
+  if (q.length < 2) return { state: 'none', est: null };
   try {
     const m = pickMedian(await search(q));
-    if (m) return { kcal100: m.kcal100, p100: m.p100, c100: m.c100, f100: m.f100, source: 'off', note: String(m.count) };
-  } catch { /* sin conexión o servicio caído: se queda sin estimar */ }
-  return null;
+    if (m) return { state: 'off', est: { kcal100: m.kcal100, p100: m.p100, c100: m.c100, f100: m.f100, source: 'off', note: String(m.count) } };
+    return { state: 'none', est: null };
+  } catch (error) {
+    return { state: 'error', est: null, error };
+  }
+}
+
+/** Devuelve { kcal100, p100, c100, f100, source: 'db' | 'off', note } o null (sin lanzar nunca error). */
+export async function estimateOne(name, opts) {
+  return (await estimateDetailed(name, opts)).est;
 }
 
 /**
  * items: ingredientes con `missing: true` se completan (se modifican en el sitio, con `est: 'db' | 'off'`).
- * Cada nombre distinto se busca una sola vez. onProgress(hechos, total).
- * Devuelve { db, off, none } (cuántos ingredientes distintos de cada tipo).
+ * Cada nombre distinto se busca una sola vez. Primero salen los de la tabla propia (instantáneo) y luego los de Open Food Facts,
+ * a su ritmo permitido, con hasta 3 intentos por nombre si hay errores. Si dos nombres seguidos fallan del todo, se para
+ * (el servicio está caído o te ha limitado) para no insistir. `skip`: nombres que Open Food Facts ya dijo que no tiene (no se repiten).
+ * `signal`: para cancelar. onProgress(hechos, total, { remoteLeft, waiting }).
+ * Devuelve { db, off, none, failed, left, stopped, noResult }: ingredientes distintos de cada tipo; `left` = los que quedan por consultar
+ * por el tope de `cap`; `stopped` = false | 'cancel' | 'blocked'; `noResult` = nombres sin resultado (para pasarlos como `skip` la próxima vez).
  */
-export async function completeItems(items, { onProgress, search, concurrency = 3, cap = 60 } = {}) {
+export async function completeItems(items, { onProgress, search, cap = 60, skip = new Set(), signal } = {}) {
   const groups = new Map();
   for (const it of items) {
     if (!it.missing) continue;
     const k = keyOf(it.name);
+    if (skip.has(k)) continue;
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k).push(it);
   }
-  const names = [...groups.keys()].slice(0, cap);
-  const out = { db: 0, off: 0, none: 0 };
-  let done = 0, next = 0;
-  const worker = async () => {
-    while (next < names.length) {
-      const k = names[next++];
-      const list = groups.get(k);
-      const est = await estimateOne(list[0].name, { search });
-      if (est) {
-        for (const it of list) {
-          it.kcal100 = est.kcal100; it.p100 = est.p100; it.c100 = est.c100; it.f100 = est.f100;
-          it.est = est.source; delete it.missing;
-        }
-        out[est.source]++;
-      } else out.none++;
-      done++;
-      if (onProgress) onProgress(done, names.length);
+  const local = [], remote = [];
+  for (const k of groups.keys()) (lookupFood(groups.get(k)[0].name) ? local : remote).push(k);
+  const todo = remote.slice(0, cap);
+  const names = [...local, ...todo];
+  const out = { db: 0, off: 0, none: 0, failed: 0, left: 0, stopped: false, noResult: [] };
+  const remoteSet = new Set(todo);
+  let done = 0, lastOff = 0, strikes = 0, remoteLeft = todo.length;
+  const report = (extra = {}) => { if (onProgress) onProgress(done, names.length, { remoteLeft, ...extra }); };
+  report(); // para enseñar enseguida cuántos hay y el tiempo aproximado
+  for (const k of names) {
+    if (signal && signal.aborted) { out.stopped = 'cancel'; break; }
+    const list = groups.get(k);
+    const isRemote = remoteSet.has(k);
+    let r = null;
+    for (let tries = 1; tries <= 3; tries++) {
+      if (isRemote) {
+        const wait = lastOff + gapMs() - Date.now();
+        if (wait > 0) await sleep(wait, signal);
+        if (signal && signal.aborted) break;
+        lastOff = Date.now();
+      }
+      r = await estimateDetailed(list[0].name, { search });
+      if (r.state !== 'error' || tries === 3) break;
+      report({ waiting: backoffMs() });
+      await sleep(backoffMs(), signal);
+      if (signal && signal.aborted) break;
     }
-  };
-  await Promise.all(Array.from({ length: Math.min(concurrency, names.length) }, worker));
+    if (!r || (signal && signal.aborted && (!r || r.state === 'error'))) { out.stopped = 'cancel'; break; }
+    if (r.est) {
+      for (const it of list) {
+        it.kcal100 = r.est.kcal100; it.p100 = r.est.p100; it.c100 = r.est.c100; it.f100 = r.est.f100;
+        it.est = r.est.source; delete it.missing;
+      }
+      out[r.est.source]++;
+      strikes = 0;
+    } else if (r.state === 'none') { out.none++; out.noResult.push(k); strikes = 0; }
+    else { out.failed++; strikes++; }
+    if (isRemote) remoteLeft--;
+    done++;
+    report();
+    if (strikes >= 2) { out.stopped = 'blocked'; break; }
+  }
+  out.left = remote.length - (todo.length - remoteLeft); // por consultar todavía (tope de la tanda o parada antes de tiempo)
   return out;
 }

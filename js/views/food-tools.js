@@ -1,7 +1,7 @@
 // Herramientas de Comidas: importar recetas (CSV/Excel), repetir comidas de otro día y sugerir el menú del día.
 import { listRange, insert, insertMany, update, session } from '../db.js';
 import { totals, itemTotals } from '../off.js';
-import { completeItems } from '../estimate.js';
+import { completeItems, OFF_GAP_MS } from '../estimate.js';
 import { csvTemplate, parseCsv, decodeCsv, buildRecipes, normName } from '../recipe-import.js';
 import { readXlsx } from '../xlsx-read.js';
 import { suggest, describe, sumSlots, mealPayload, SLOTS, TAGS } from '../menu.js';
@@ -80,9 +80,17 @@ async function readTable(file) {
 export function openImport(existing) {
   const byName = new Map();
   existing.forEach((r) => { if (!byName.has(normName(r.name))) byName.set(normName(r.name), r); });
-  const st = { stage: 'pick', busy: false, error: '', result: null, fileName: '', open: new Set(), progress: null, report: null, onlyPend: false };
+  const st = { stage: 'pick', busy: false, error: '', result: null, fileName: '', open: new Set(), progress: null, report: null, onlyPend: false, noResult: new Set(), abort: null };
   const m = openModal(html`<div id="im"></div>`, { title: t('imp.title'), wide: true });
   const box = m.body.querySelector('#im');
+  // Progreso de "Completar": texto, tiempo aproximado (Open Food Facts limita a 10 consultas por minuto) y botón de cancelar.
+  const progHtml = () => {
+    const p = st.progress;
+    const mins = Math.ceil(((p.remoteLeft || 0) * OFF_GAP_MS()) / 60000);
+    return html`${spinner(t('imp.completing', p))}
+      ${p.waiting ? html`<p class="small">${t('imp.waiting')}</p>` : mins >= 1 ? html`<p class="tiny muted">${t('imp.eta', { m: mins })}</p>` : ''}
+      <button class="btn small" id="im-cancel">${t('common.cancel')}</button>`;
+  };
   const draw = () => {
     if (st.stage === 'pick') {
       setHtml(box, html`
@@ -120,8 +128,11 @@ export function openImport(existing) {
         ${nMissing ? html`<div class="note warn"><strong>${t('imp.missing', { n: nMissing })}</strong>
           <p class="small">${t('imp.missingHelp')}</p>
           <button class="btn small primary" id="im-complete" ${st.busy ? 'disabled' : ''}>${t('imp.complete')}</button></div>` : ''}
-        ${st.progress ? html`<div id="im-prog">${spinner(t('imp.completing', st.progress))}</div>` : ''}
-        ${st.report ? html`<p class="note">${t('imp.completed', st.report)}</p>` : ''}
+        ${st.progress ? html`<div id="im-prog">${progHtml()}</div>` : ''}
+        ${st.report ? html`<div class="note"><p>${t('imp.completed', st.report)}</p>
+          ${st.report.failed ? html`<p class="small">${t('imp.failedNote', { n: st.report.failed })}</p>` : ''}
+          ${st.report.stopped === 'blocked' ? html`<p class="small"><b>${t('imp.blocked')}</b></p>` : st.report.stopped === 'cancel' ? html`<p class="small">${t('imp.cancelled')}</p>` : ''}
+          ${st.report.left ? html`<p class="small">${t('imp.leftNote', { n: st.report.left })}</p>` : ''}</div>` : ''}
         ${st.report && pend.length ? html`<div class="note warn pend"><strong>${t('imp.pendTitle', { n: pendNames.length, r: pend.length })}</strong>
           <div class="pend-names">${pendNames.slice(0, 12).map((n) => html`<span class="tag bad">${n}</span>`)}${pendNames.length > 12 ? html`<span class="muted small">${t('imp.andMore', { n: pendNames.length - 12 })}</span>` : ''}</div>
           <p class="small">${t('imp.pendHelp')}</p>
@@ -188,17 +199,26 @@ export function openImport(existing) {
   });
   on(box, 'click', '#im-complete', async () => {
     const items = st.result.recipes.flatMap((r) => r.items);
-    st.busy = true; st.report = null; st.progress = { i: 0, n: new Set(items.filter((x) => x.missing).map((x) => x.name.toLowerCase().trim())).size }; draw();
+    const names = new Set(items.filter((x) => x.missing).map((x) => normName(x.name))).size;
+    st.busy = true; st.report = null; st.progress = { i: 0, n: names, remoteLeft: 0 }; st.abort = new AbortController(); draw();
+    let wake = null;
+    try { wake = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch { /* sin permiso: no pasa nada */ } // que el móvil no se apague mientras busca
     try {
-      st.report = await completeItems(items, { onProgress: (i, n) => { st.progress = { i, n }; const el = box.querySelector('#im-prog'); if (el) setHtml(el, spinner(t('imp.completing', st.progress))); } });
+      st.report = await completeItems(items, {
+        skip: st.noResult, signal: st.abort.signal,
+        onProgress: (i, n, info) => { st.progress = { i, n, ...info }; const el = box.querySelector('#im-prog'); if (el) setHtml(el, progHtml()); },
+      });
+      st.report.noResult.forEach((k) => st.noResult.add(k)); // lo que Open Food Facts no tiene no se vuelve a preguntar
     } catch (err) { fail(err); }
-    st.busy = false; st.progress = null;
+    if (wake) wake.release().catch(() => {});
+    st.abort = null; st.busy = false; st.progress = null;
     // Si quedan ingredientes sin datos, se enseñan directamente solo esas recetas, ya abiertas.
     st.result.recipes.forEach((r, ri) => { if (r.items.some((i) => i.missing)) { st.onlyPend = true; st.open.add(ri); } });
     draw();
     const pendEl = box.querySelector('.pend');
     if (pendEl) pendEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
   });
+  on(box, 'click', '#im-cancel', () => { if (st.abort) st.abort.abort(); });
   on(box, 'click', '#im-only', () => {
     st.onlyPend = !st.onlyPend;
     if (st.onlyPend) st.result.recipes.forEach((r, ri) => { if (r.items.some((i) => i.missing)) st.open.add(ri); });
