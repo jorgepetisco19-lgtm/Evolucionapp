@@ -123,12 +123,27 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+-- ---------- Memoria de ingredientes (v11): lo que ya has completado, para no esperar otra vez ----------
+create table if not exists public.ingredients (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  key text not null check (char_length(key) between 2 and 120),     -- nombre normalizado (minúsculas, sin tildes ni paréntesis)
+  name text not null,                                                -- nombre tal como lo escribiste
+  kcal100 numeric(7,2) not null check (kcal100 > 0 and kcal100 <= 900),
+  p100 numeric(6,2) not null default 0 check (p100 between 0 and 100),
+  c100 numeric(6,2) not null default 0 check (c100 between 0 and 100),
+  f100 numeric(6,2) not null default 0 check (f100 between 0 and 100),
+  source text not null default 'manual' check (source in ('off', 'manual')),
+  updated_at timestamptz not null default now(),
+  unique (user_id, key)
+);
+
 -- ---------- Seguridad: RLS + permisos ----------
 -- (En este proyecto "Automatically expose new tables" está desactivado, así que damos los permisos aquí.)
 do $$
 declare t text;
 begin
-  foreach t in array array['weigh_ins','measurements','photos','routines','workouts','recipes','meals','profiles']
+  foreach t in array array['weigh_ins','measurements','photos','routines','workouts','recipes','meals','profiles','ingredients']
   loop
     execute format('alter table public.%I enable row level security', t);
     execute format('revoke all on table public.%I from anon', t);

@@ -1,7 +1,8 @@
 // Herramientas de Comidas: importar recetas (CSV/Excel), repetir comidas de otro día y sugerir el menú del día.
-import { listRange, insert, insertMany, update, session } from '../db.js';
+import { listRange, listAll, insert, insertMany, update, session } from '../db.js';
 import { totals, itemTotals } from '../off.js';
-import { completeItems, OFF_GAP_MS } from '../estimate.js';
+import { completeItems, keyOf, OFF_GAP_MS } from '../estimate.js';
+import { loadMemory, remember, clearMemory } from '../ingredients.js';
 import { csvTemplate, parseCsv, decodeCsv, buildRecipes, normName } from '../recipe-import.js';
 import { readXlsx } from '../xlsx-read.js';
 import { suggest, describe, sumSlots, mealPayload, SLOTS, TAGS } from '../menu.js';
@@ -77,19 +78,119 @@ async function readTable(file) {
   return parseCsv(decodeCsv(buf));
 }
 
+// ---------- completar en segundo plano (v11) ----------
+// La importación vive aquí, fuera de la ventana: si la cierras (o cambias de pantalla) mientras se completan ingredientes, sigue
+// trabajando y un aviso arriba te deja volver. Al terminar te avisa y, al abrirla, ves la vista previa para revisar e importar.
+let job = null;
+const newJob = () => ({ stage: 'pick', busy: false, error: '', result: null, fileName: '', open: new Set(), progress: null, report: null, onlyPend: false, noResult: new Set(), abort: null, running: false, review: false, memNote: 0, ui: null });
+
+/** Cancela y olvida la importación en curso (al cerrar sesión). */
+export function resetImportSession() {
+  if (job && job.abort) job.abort.abort();
+  job = null; clearMemory(); renderBanner();
+}
+
+window.addEventListener('evo:logout', () => resetImportSession());
+
+function renderBanner() {
+  let el = document.getElementById('job-banner');
+  const st = job;
+  if (!st || st.ui || !(st.running || st.review)) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'job-banner'; el.className = 'job-banner'; el.setAttribute('role', 'status');
+    document.body.appendChild(el);
+    const open = async () => {
+      if (!job || job.ui) return;
+      try { openImport(await listAll('recipes', { order: 'name', asc: true, limit: 2000 })); } catch (err) { fail(err); }
+    };
+    on(el, 'click', '#job-open', open);
+    on(el, 'click', '#job-cancel', () => { if (job && job.abort) job.abort.abort(); });
+    on(el, 'click', '#job-dismiss', () => { if (job && !job.running) { job = null; renderBanner(); } });
+  }
+  if (st.running) {
+    const p = st.progress || { i: 0, n: 0, remoteLeft: 0 };
+    const mins = Math.ceil(((p.remoteLeft || 0) * OFF_GAP_MS()) / 60000);
+    setHtml(el, html`<span class="spin"></span>
+      <span class="grow"><strong>${t('job.running', { i: p.i, n: p.n })}</strong>${p.waiting ? html` <span class="small">${t('job.waiting')}</span>` : mins >= 1 ? html` <span class="small">${t('job.eta', { m: mins })}</span>` : ''}</span>
+      <button class="btn small" id="job-open">${t('job.view')}</button><button class="btn small" id="job-cancel">${t('common.cancel')}</button>`);
+  } else {
+    setHtml(el, html`<span class="grow"><strong>${t('job.ready')}</strong></span>
+      <button class="btn small primary" id="job-open">${t('job.open')}</button><button class="icon-btn" id="job-dismiss" aria-label="${t('common.close')}">✕</button>`);
+  }
+}
+
+// Rellena con tu memoria de ingredientes los que no tienen datos (instantáneo). Devuelve cuántos ingredientes distintos ha rellenado.
+function applyMemory(result, memory) {
+  const seen = new Set();
+  for (const r of result.recipes) for (const it of r.items) {
+    if (!it.missing) continue;
+    const m = memory.get(keyOf(it.name));
+    if (!m) continue;
+    it.kcal100 = m.kcal100; it.p100 = m.p100; it.c100 = m.c100; it.f100 = m.f100;
+    it.est = 'mem'; it.memSrc = m.source; delete it.missing;
+    seen.add(keyOf(it.name));
+  }
+  return seen.size;
+}
+
+async function runComplete(st) {
+  const items = st.result.recipes.flatMap((r) => r.items);
+  const names = new Set(items.filter((x) => x.missing).map((x) => normName(x.name))).size;
+  st.busy = true; st.running = true; st.review = false; st.report = null; st.progress = { i: 0, n: names, remoteLeft: 0 }; st.abort = new AbortController();
+  if (st.ui) st.ui.draw();
+  renderBanner();
+  let wake = null;
+  try { wake = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch { /* sin permiso: no pasa nada */ } // que el móvil no se apague mientras busca
+  const memory = await loadMemory();
+  const found = [];
+  const flush = () => { if (found.length) remember(found.splice(0)); }; // lo hallado en Open Food Facts se guarda por tandas, sin esperar al final
+  try {
+    st.report = await completeItems(items, {
+      skip: st.noResult, signal: st.abort.signal, memory,
+      onFound: (name, est) => { found.push({ name, ...est, source: 'off' }); if (found.length >= 4) flush(); },
+      onProgress: (i, n, info) => { st.progress = { i, n, ...info }; if (st.ui) st.ui.prog(); else renderBanner(); },
+    });
+    st.report.noResult.forEach((k) => st.noResult.add(k)); // lo que Open Food Facts no tiene no se vuelve a preguntar
+  } catch (err) { fail(err); }
+  flush();
+  if (wake) wake.release().catch(() => {});
+  if (job !== st) return; // mientras tanto se cerró sesión o se descartó
+  st.abort = null; st.busy = false; st.running = false; st.progress = null;
+  // Si quedan ingredientes sin datos, se enseñan directamente solo esas recetas, ya abiertas.
+  st.result.recipes.forEach((r, ri) => { if (r.items.some((i) => i.missing)) { st.onlyPend = true; st.open.add(ri); } });
+  if (st.ui) st.ui.draw();
+  else { st.review = true; toast(t('job.ready')); }
+  if (st.ui) st.ui.scrollPend();
+  renderBanner();
+}
+
 export function openImport(existing) {
   const byName = new Map();
   existing.forEach((r) => { if (!byName.has(normName(r.name))) byName.set(normName(r.name), r); });
-  const st = { stage: 'pick', busy: false, error: '', result: null, fileName: '', open: new Set(), progress: null, report: null, onlyPend: false, noResult: new Set(), abort: null };
+  const st = job && job.stage === 'preview' ? job : (job = newJob()); // si hay una importación en marcha, se retoma
   const m = openModal(html`<div id="im"></div>`, { title: t('imp.title'), wide: true });
   const box = m.body.querySelector('#im');
+  // La ventana se "engancha" a la importación; al cerrarse (con ✕, tocando fuera o al cambiar de pantalla) se suelta y, si estaba completando,
+  // sigue en segundo plano. Se vigila el <body> porque closeAllModals() quita la ventana sin avisar.
+  const detach = () => {
+    watch.disconnect();
+    if (st.ui !== ui) return;
+    st.ui = null;
+    if (job === st && !st.running && !st.review) job = null;
+    renderBanner();
+  };
+  const watch = new MutationObserver(() => { if (!m.el.isConnected) detach(); });
+  watch.observe(document.body, { childList: true });
+  m.onClose = detach;
   // Progreso de "Completar": texto, tiempo aproximado (Open Food Facts limita a 10 consultas por minuto) y botón de cancelar.
   const progHtml = () => {
     const p = st.progress;
     const mins = Math.ceil(((p.remoteLeft || 0) * OFF_GAP_MS()) / 60000);
     return html`${spinner(t('imp.completing', p))}
       ${p.waiting ? html`<p class="small">${t('imp.waiting')}</p>` : mins >= 1 ? html`<p class="tiny muted">${t('imp.eta', { m: mins })}</p>` : ''}
-      <button class="btn small" id="im-cancel">${t('common.cancel')}</button>`;
+      <p class="tiny muted">${t('job.hint')}</p>
+      <div class="row-actions"><button class="btn small primary" id="im-bg">${t('job.bg')}</button><button class="btn small" id="im-cancel">${t('common.cancel')}</button></div>`;
   };
   const draw = () => {
     if (st.stage === 'pick') {
@@ -125,11 +226,12 @@ export function openImport(existing) {
         <div class="note"><strong>${t('imp.servTitle')}</strong><p class="small">${t('imp.servNote')}</p>
           ${nBig ? html`<p class="small"><b>${t('imp.bigCount', { n: nBig })}</b></p>` : ''}</div>
         ${nUntag ? html`<div class="note warn"><strong>${t('imp.noType', { n: nUntag, total: rs.length })}</strong><p class="small">${t('imp.noTypeHelp')}</p></div>` : ''}
+        ${st.memNote ? html`<div class="note"><p class="small">${t('imp.memApplied', { n: st.memNote })}</p></div>` : ''}
         ${nMissing ? html`<div class="note warn"><strong>${t('imp.missing', { n: nMissing })}</strong>
           <p class="small">${t('imp.missingHelp')}</p>
           <button class="btn small primary" id="im-complete" ${st.busy ? 'disabled' : ''}>${t('imp.complete')}</button></div>` : ''}
         ${st.progress ? html`<div id="im-prog">${progHtml()}</div>` : ''}
-        ${st.report ? html`<div class="note"><p>${t('imp.completed', st.report)}</p>
+        ${st.report ? html`<div class="note"><p>${t('imp.completed', st.report)}${st.report.mem ? ' ' + t('imp.completedMem', { n: st.report.mem }) : ''}</p>
           ${st.report.failed ? html`<p class="small">${t('imp.failedNote', { n: st.report.failed })}</p>` : ''}
           ${st.report.stopped === 'blocked' ? html`<p class="small"><b>${t('imp.blocked')}</b></p>` : st.report.stopped === 'cancel' ? html`<p class="small">${t('imp.cancelled')}</p>` : ''}
           ${st.report.left ? html`<p class="small">${t('imp.leftNote', { n: st.report.left })}</p>` : ''}</div>` : ''}
@@ -161,7 +263,7 @@ export function openImport(existing) {
             </div>`)}</div></details>`;
         })}</div>
         ${w.length ? html`<details class="warn-box"><summary>${t('imp.warnings', { n: w.length })}</summary><ul>${w.slice(0, 12).map((x) => html`<li>${x.row ? t('imp.row', { n: x.row }) + ': ' : ''}${x.text}</li>`)}${w.length > 12 ? html`<li>${t('imp.more', { n: w.length - 12 })}</li>` : ''}</ul></details>` : ''}
-        <div class="form-actions two"><button class="btn" id="im-back">${t('imp.other')}</button><button class="btn primary" id="im-run" ${st.busy ? 'disabled' : ''}>${t('imp.run', { n: rs.length })}</button></div>
+        <div class="form-actions two"><button class="btn" id="im-back" ${st.running ? 'disabled' : ''}>${t('imp.other')}</button><button class="btn primary" id="im-run" ${st.busy ? 'disabled' : ''}>${t('imp.run', { n: rs.length })}</button></div>
         ${st.busy ? spinner() : ''}`);
     }
   };
@@ -197,27 +299,8 @@ export function openImport(existing) {
     }
     draw();
   });
-  on(box, 'click', '#im-complete', async () => {
-    const items = st.result.recipes.flatMap((r) => r.items);
-    const names = new Set(items.filter((x) => x.missing).map((x) => normName(x.name))).size;
-    st.busy = true; st.report = null; st.progress = { i: 0, n: names, remoteLeft: 0 }; st.abort = new AbortController(); draw();
-    let wake = null;
-    try { wake = navigator.wakeLock ? await navigator.wakeLock.request('screen') : null; } catch { /* sin permiso: no pasa nada */ } // que el móvil no se apague mientras busca
-    try {
-      st.report = await completeItems(items, {
-        skip: st.noResult, signal: st.abort.signal,
-        onProgress: (i, n, info) => { st.progress = { i, n, ...info }; const el = box.querySelector('#im-prog'); if (el) setHtml(el, progHtml()); },
-      });
-      st.report.noResult.forEach((k) => st.noResult.add(k)); // lo que Open Food Facts no tiene no se vuelve a preguntar
-    } catch (err) { fail(err); }
-    if (wake) wake.release().catch(() => {});
-    st.abort = null; st.busy = false; st.progress = null;
-    // Si quedan ingredientes sin datos, se enseñan directamente solo esas recetas, ya abiertas.
-    st.result.recipes.forEach((r, ri) => { if (r.items.some((i) => i.missing)) { st.onlyPend = true; st.open.add(ri); } });
-    draw();
-    const pendEl = box.querySelector('.pend');
-    if (pendEl) pendEl.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  });
+  on(box, 'click', '#im-complete', () => { if (!st.running) runComplete(st); });
+  on(box, 'click', '#im-bg', () => m.close());
   on(box, 'click', '#im-cancel', () => { if (st.abort) st.abort.abort(); });
   on(box, 'click', '#im-only', () => {
     st.onlyPend = !st.onlyPend;
@@ -226,7 +309,7 @@ export function openImport(existing) {
   });
   on(box, 'click', '#im-tpl', () => download('plantilla-recetas.csv', csvTemplate(), 'text/csv;charset=utf-8'));
   on(box, 'click', '#im-pick', () => box.querySelector('#im-file').click());
-  on(box, 'click', '#im-back', () => { st.stage = 'pick'; st.error = ''; draw(); });
+  on(box, 'click', '#im-back', () => { if (st.running) return; st.stage = 'pick'; st.error = ''; st.memNote = 0; st.report = null; st.noResult = new Set(); draw(); });
   on(box, 'change', '#im-file', async (e, input) => {
     const file = input.files[0];
     if (!file) return;
@@ -234,7 +317,10 @@ export function openImport(existing) {
     try {
       const res = buildRecipes(await readTable(file));
       if (res.error) st.error = res.error === 'none' && res.warnings.length ? `${t('imp.err.none')} (${res.warnings[0].text})` : t('imp.err.' + res.error);
-      else { st.result = res; st.stage = 'preview'; st.fileName = file.name; }
+      else {
+        st.result = res; st.stage = 'preview'; st.fileName = file.name; st.report = null; st.onlyPend = false; st.open = new Set(); st.noResult = new Set();
+        st.memNote = applyMemory(res, await loadMemory()); // lo que ya completaste otras veces se rellena al instante
+      }
     } catch (err) { console.warn(err); st.error = `${t('imp.err.read')}: ${(err && err.message) || err}`; }
     st.busy = false; draw();
   });
@@ -243,7 +329,11 @@ export function openImport(existing) {
     try {
       const fresh = [], updates = [];
       // 'missing' es solo una marca de la vista previa; si la receta da varias raciones, se guarda UNA ración (gramos divididos).
-      const prep = (r) => r.items.map(({ missing: _m, manual: _n, typed: _t, ...it }) => (servOf(r) === 1 ? it : { ...it, grams: Math.round((it.grams / servOf(r)) * 10) / 10 }));
+      const prep = (r) => r.items.map(({ missing: _m, manual: _n, typed: _t, memSrc, ...it }) => {
+        // Lo que vino de tu memoria se guarda como estimado solo si en su día se estimó con Open Food Facts (y no lo has corregido ahora).
+        if (it.est === 'mem') { if (memSrc === 'off' && !_n) it.est = 'off'; else delete it.est; }
+        return servOf(r) === 1 ? it : { ...it, grams: Math.round((it.grams / servOf(r)) * 10) / 10 };
+      });
       for (const r of st.result.recipes) {
         const old = byName.get(normName(r.name));
         if (old) updates.push([old, r]); else fresh.push(r);
@@ -266,9 +356,20 @@ export function openImport(existing) {
         }
       }
       if (sqlMissing) toast(t('food.needSql'), 'error');
+      // Lo que has escrito a mano se recuerda para la próxima importación (si falla, no pasa nada: la importación ya está hecha).
+      const typed = new Map();
+      for (const r of st.result.recipes) for (const it of r.items) if (it.manual && !typed.has(keyOf(it.name))) typed.set(keyOf(it.name), { ...it, source: 'manual' });
+      if (typed.size) await remember([...typed.values()]);
       m.close(); toast(t('imp.done', { new: fresh.length, upd: updates.length })); refresh();
     } catch (err) { st.busy = false; draw(); fail(err); }
   });
+  const ui = {
+    draw,
+    prog: () => { const el = box.querySelector('#im-prog'); if (el) setHtml(el, progHtml()); },
+    scrollPend: () => { const el = box.querySelector('.pend'); if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
+  };
+  st.ui = ui; st.review = false;
+  renderBanner();
   draw();
 }
 

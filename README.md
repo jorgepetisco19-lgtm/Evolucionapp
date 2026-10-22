@@ -33,17 +33,19 @@ js/recipe-import.js lee recetas de CSV/Excel (formatos, avisos, plantilla)
 js/xlsx-read.js     lector de .xlsx sin librerías
 js/menu.js          cálculo de la sugerencia de menú del día
 js/foods-db.js      tabla propia de ~150 ingredientes habituales (kcal y macros aproximados)
-js/estimate.js      completa kcal/macros que faltan: tabla propia y, si no, Open Food Facts
-js/views/food-tools.js  pantallas de importar recetas, repetir comidas y menú del día
+js/estimate.js      completa kcal/macros que faltan: tu memoria, tabla propia y, si no, Open Food Facts
+js/ingredients.js   (v11) memoria de ingredientes: lo ya completado (Open Food Facts o a mano) para no esperar otra vez
+js/views/food-tools.js  pantallas de importar recetas (también «completar en segundo plano»), repetir comidas y menú del día
 supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 supabase/04-guarniciones.sql   (v9) añade la etiqueta «guarnición» a esa lista
 supabase/05-primeros.sql   (v10) añade la etiqueta «primer plato» (incluye lo del 04)
+supabase/06-ingredientes.sql   (v11) crea la tabla de tu memoria de ingredientes
 ```
 
 ## Puesta en marcha (una sola vez)
 
 1. **Base de datos.** En Supabase: *SQL Editor* → *New query* → pega el contenido de `supabase/schema.sql` → *Run*.
-   Comprueba que en *Table Editor* aparecen 8 tablas (`weigh_ins`, `measurements`, `photos`, `routines`, `workouts`, `recipes`, `meals`, `profiles`) y en *Storage* el bucket `photos`.
+   Comprueba que en *Table Editor* aparecen 9 tablas (`weigh_ins`, `measurements`, `photos`, `routines`, `workouts`, `recipes`, `meals`, `profiles`, `ingredients`) y en *Storage* el bucket `photos`.
 2. **Subir el código.** En GitHub Desktop verás todos los archivos nuevos → *Commit to main* → *Push origin*.
 3. **Publicar la web.** En github.com, repositorio → *Settings* → *Pages* → *Build and deployment*: *Deploy from a branch*, rama `main`, carpeta `/ (root)` → *Save*.
    A los 1-2 minutos estará en `https://jorgepetisco19-lgtm.github.io/Evolucionapp/`.
@@ -53,6 +55,8 @@ supabase/05-primeros.sql   (v10) añade la etiqueta «primer plato» (incluye lo
 **Si ya tenías la base de datos creada antes de la v6:** ejecuta además `supabase/03-menu.sql` (SQL Editor → pegar → Run). Sin él todo funciona, pero las recetas no guardan sus etiquetas (desayuno/comida/merienda/cena).
 
 **Para las etiquetas «guarnición» (v9) y «primer plato» (v10):** ejecuta también `supabase/05-primeros.sql` (después del 03; ya incluye lo del 04). Sin él, al etiquetar una receta como guarnición o primer plato la base de datos la rechaza.
+
+**Para la memoria de ingredientes (v11):** ejecuta `supabase/06-ingredientes.sql`. Es seguro repetirlo y no toca nada existente. Sin él la app funciona igual, pero no recuerda los ingredientes (hay que esperar a Open Food Facts cada vez).
 
 Si Google devuelve `redirect_uri_mismatch`, espera unos minutos (Google tarda en aplicar los cambios) y revisa que la URI de redirección sea exactamente
 `https://nxcyupxvkygghlwpboge.supabase.co/auth/v1/callback`.

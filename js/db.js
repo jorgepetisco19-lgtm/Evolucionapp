@@ -39,6 +39,10 @@ export async function getBy(table, col, val) {
 export async function upsert(table, row, onConflict) {
   return check(await sb.from(table).upsert(row, { onConflict }).select().single());
 }
+// Guarda varias filas a la vez; si ya existe una con la misma clave (onConflict), la actualiza.
+export async function upsertMany(table, rows, onConflict) {
+  return check(await sb.from(table).upsert(rows, { onConflict }).select());
+}
 export async function insert(table, row) {
   return check(await sb.from(table).insert(row).select().single());
 }

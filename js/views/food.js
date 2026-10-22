@@ -5,6 +5,7 @@ import { currentPlan } from '../plan.js';
 import { openImport, openCopyMeals, openSuggest, saveRecipeRow } from './food-tools.js';
 import { TAGS } from '../menu.js';
 import { estimateOne } from '../estimate.js';
+import { loadMemory, remember } from '../ingredients.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, num, toNum, fail, toast, navigate, refresh, confirmBox,
 } from '../util.js';
@@ -327,11 +328,12 @@ function builder(el, { mode, init, onSubmit }) {
     const name = el.querySelector('#m-name').value.trim();
     if (name.length < 2) { toast(t('food.needIng'), 'error'); return; }
     btn.disabled = true;
-    const est = await estimateOne(name);
+    const est = await estimateOne(name, { memory: await loadMemory() }); // primero tu memoria de ingredientes, luego la tabla y por último Open Food Facts
     btn.disabled = false;
     if (!est) { toast(t('food.estNone'), 'error'); return; }
+    if (est.source === 'off') remember([{ name, ...est }]); // lo encontrado en Open Food Facts se recuerda para la próxima vez
     el.querySelector('#m-k').value = est.kcal100; el.querySelector('#m-p').value = est.p100; el.querySelector('#m-c').value = est.c100; el.querySelector('#m-f').value = est.f100;
-    state.estSource = est.source;
+    state.estSource = est.source === 'mem' ? (est.note === 'off' ? 'off' : null) : est.source; // lo recordado que escribiste tú a mano no es una estimación
     el.querySelector('#m-est-note').textContent = t('food.estDone', { src: t('food.estFrom.' + est.source) });
   });
   on(el, 'click', '#m-add', () => {

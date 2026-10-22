@@ -138,6 +138,7 @@ function setUser(user, errorMsg) {
   if (u.searchParams.has('code') || u.searchParams.has('error')) {
     history.replaceState({}, '', u.pathname + (location.hash || ''));
   }
+  if (!user) window.dispatchEvent(new Event('evo:logout')); // las pantallas con trabajo en marcha (importación) lo descartan
   if (user) startApp(); else showLogin(errorMsg);
 }
 

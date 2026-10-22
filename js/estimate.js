@@ -14,7 +14,7 @@ const sleep = (ms, signal) => new Promise((resolve) => {
 });
 export const OFF_GAP_MS = () => gapMs();
 
-const keyOf = (name) => norm(name).replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+export const keyOf = (name) => norm(name).replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 const queryOf = (name) => String(name || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 
 // De entre los productos devueltos se toma el de kcal "del medio": así un paquete raro (patatas fritas buscando "patata") no desvirtúa el valor,
@@ -27,11 +27,13 @@ export function pickMedian(foods) {
 }
 
 /**
- * Estima un ingrediente y dice cómo ha ido: state = 'db' (tabla propia) | 'off' (Open Food Facts) |
+ * Estima un ingrediente y dice cómo ha ido: state = 'mem' (tu memoria de ingredientes, js/ingredients.js) | 'db' (tabla propia) | 'off' (Open Food Facts) |
  * 'none' (Open Food Facts respondió pero no hay nada útil: no tiene sentido reintentar) | 'error' (sin conexión, límite, caído: sí se puede reintentar).
- * `search` se puede sustituir en pruebas.
+ * `memory`: mapa clave -> ingrediente recordado (se consulta primero). `search` se puede sustituir en pruebas.
  */
-export async function estimateDetailed(name, { search = searchFoods } = {}) {
+export async function estimateDetailed(name, { search = searchFoods, memory } = {}) {
+  const mem = memory && memory.get(keyOf(name));
+  if (mem) return { state: 'mem', est: { kcal100: mem.kcal100, p100: mem.p100, c100: mem.c100, f100: mem.f100, source: 'mem', note: mem.source } };
   const hit = lookupFood(name);
   if (hit) return { state: 'db', est: { kcal100: hit.kcal100, p100: hit.p100, c100: hit.c100, f100: hit.f100, source: 'db', note: hit.key } };
   const q = queryOf(name);
@@ -45,21 +47,22 @@ export async function estimateDetailed(name, { search = searchFoods } = {}) {
   }
 }
 
-/** Devuelve { kcal100, p100, c100, f100, source: 'db' | 'off', note } o null (sin lanzar nunca error). */
+/** Devuelve { kcal100, p100, c100, f100, source: 'mem' | 'db' | 'off', note } o null (sin lanzar nunca error). */
 export async function estimateOne(name, opts) {
   return (await estimateDetailed(name, opts)).est;
 }
 
 /**
- * items: ingredientes con `missing: true` se completan (se modifican en el sitio, con `est: 'db' | 'off'`).
- * Cada nombre distinto se busca una sola vez. Primero salen los de la tabla propia (instantáneo) y luego los de Open Food Facts,
+ * items: ingredientes con `missing: true` se completan (se modifican en el sitio, con `est: 'mem' | 'db' | 'off'`).
+ * Cada nombre distinto se busca una sola vez. Primero salen los de tu memoria y la tabla propia (instantáneo) y luego los de Open Food Facts,
  * a su ritmo permitido, con hasta 3 intentos por nombre si hay errores. Si dos nombres seguidos fallan del todo, se para
  * (el servicio está caído o te ha limitado) para no insistir. `skip`: nombres que Open Food Facts ya dijo que no tiene (no se repiten).
- * `signal`: para cancelar. onProgress(hechos, total, { remoteLeft, waiting }).
- * Devuelve { db, off, none, failed, left, stopped, noResult }: ingredientes distintos de cada tipo; `left` = los que quedan por consultar
+ * `signal`: para cancelar. `memory`: tu memoria de ingredientes. `onFound(nombre, est)`: se llama con cada ingrediente hallado en Open Food Facts
+ * (para guardarlo en la memoria). onProgress(hechos, total, { remoteLeft, waiting }).
+ * Devuelve { mem, db, off, none, failed, left, stopped, noResult }: ingredientes distintos de cada tipo; `left` = los que quedan por consultar
  * por el tope de `cap`; `stopped` = false | 'cancel' | 'blocked'; `noResult` = nombres sin resultado (para pasarlos como `skip` la próxima vez).
  */
-export async function completeItems(items, { onProgress, search, cap = 60, skip = new Set(), signal } = {}) {
+export async function completeItems(items, { onProgress, search, cap = 60, skip = new Set(), signal, memory, onFound } = {}) {
   const groups = new Map();
   for (const it of items) {
     if (!it.missing) continue;
@@ -69,10 +72,10 @@ export async function completeItems(items, { onProgress, search, cap = 60, skip 
     groups.get(k).push(it);
   }
   const local = [], remote = [];
-  for (const k of groups.keys()) (lookupFood(groups.get(k)[0].name) ? local : remote).push(k);
+  for (const k of groups.keys()) ((memory && memory.has(k)) || lookupFood(groups.get(k)[0].name) ? local : remote).push(k);
   const todo = remote.slice(0, cap);
   const names = [...local, ...todo];
-  const out = { db: 0, off: 0, none: 0, failed: 0, left: 0, stopped: false, noResult: [] };
+  const out = { mem: 0, db: 0, off: 0, none: 0, failed: 0, left: 0, stopped: false, noResult: [] };
   const remoteSet = new Set(todo);
   let done = 0, lastOff = 0, strikes = 0, remoteLeft = todo.length;
   const report = (extra = {}) => { if (onProgress) onProgress(done, names.length, { remoteLeft, ...extra }); };
@@ -89,7 +92,7 @@ export async function completeItems(items, { onProgress, search, cap = 60, skip 
         if (signal && signal.aborted) break;
         lastOff = Date.now();
       }
-      r = await estimateDetailed(list[0].name, { search });
+      r = await estimateDetailed(list[0].name, { search, memory });
       if (r.state !== 'error' || tries === 3) break;
       report({ waiting: backoffMs() });
       await sleep(backoffMs(), signal);
@@ -102,6 +105,7 @@ export async function completeItems(items, { onProgress, search, cap = 60, skip 
         it.est = r.est.source; delete it.missing;
       }
       out[r.est.source]++;
+      if (r.est.source === 'off' && onFound) { try { onFound(list[0].name, r.est); } catch (e) { /* guardar en la memoria nunca debe parar la tanda */ } }
       strikes = 0;
     } else if (r.state === 'none') { out.none++; out.noResult.push(k); strikes = 0; }
     else { out.failed++; strikes++; }
