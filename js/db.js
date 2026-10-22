@@ -46,6 +46,10 @@ export async function insertMany(table, rows) {
 export async function update(table, id, row) {
   return check(await sb.from(table).update(row).eq('id', id).select().single());
 }
+// Cambia lo mismo en varias filas a la vez (una sola petición).
+export async function updateMany(table, ids, row) {
+  return check(await sb.from(table).update(row).in('id', ids).select());
+}
 export async function remove(table, id) {
   check(await sb.from(table).delete().eq('id', id));
 }

@@ -1,5 +1,5 @@
 // Comidas: diario con kcal y macros, y recetas propias (eliges ingredientes y la app las guarda con su nombre).
-import { listRange, listAll, insert, remove } from '../db.js';
+import { listRange, listAll, insert, remove, updateMany } from '../db.js';
 import { searchFoods, totals } from '../off.js';
 import { currentPlan } from '../plan.js';
 import { openImport, openCopyMeals, openSuggest, saveRecipeRow } from './food-tools.js';
@@ -142,25 +142,100 @@ function openAddMeal(date, recipes) {
 // ---------- recetas ----------
 async function renderRecipes(el) {
   const recipes = await listAll('recipes', { order: 'name', asc: true });
-  setHtml(el, html`
-    <div class="row-actions"><button class="btn primary" id="new-recipe">${raw(ICONS.plus)}<span>${t('food.newRecipe')}</span></button><button class="btn" id="import-recipes">${t('imp.btn')}</button></div>
-    ${recipes.length === 0 ? html`<div class="card empty"><p>${t('food.noRecipes')}</p></div>` : html`
-    <div class="card list">${recipes.map((r) => {
-      const tt = totals(r.items, 1);
-      return html`<div class="row static">
-        <div class="grow"><strong>${r.name}</strong>${(r.meal_types || []).length ? html`<div class="tags">${r.meal_types.map((k) => html`<span class="tag">${t('menu.slot.' + k)}</span>`)}</div>` : ''}<div class="muted small">${r.items.map((i) => i.name).join(', ')}</div>
-          <div class="muted small">${num(tt.kcal, 0)} kcal · P ${num(tt.protein, 0)} · C ${num(tt.carbs, 0)} · G ${num(tt.fat, 0)}</div></div>
-        <button class="icon-btn" data-edit="${r.id}" aria-label="${t('common.edit')}">${raw(ICONS.edit)}</button>
-        <button class="icon-btn" data-del="${r.id}" aria-label="${t('common.delete')}">${raw(ICONS.trash)}</button>
-      </div>`;
-    })}</div>`}`);
+  // Selección múltiple: se entra con "Seleccionar" o manteniendo pulsada una receta; sirve para etiquetar varias a la vez.
+  const st = { filter: 'all', selecting: false, sel: new Set(), mode: 'add', busy: false };
+  const tagsOf = (r) => r.meal_types || [];
+  const shown = () => recipes.filter((r) => (st.filter === 'all' ? true : st.filter === 'none' ? !tagsOf(r).length : tagsOf(r).includes(st.filter)));
+  const draw = () => {
+    const list = shown();
+    const nNone = recipes.filter((r) => !tagsOf(r).length).length;
+    const filters = [['all', t('food.filterAll')], ['none', `${t('food.filterNone')} (${nNone})`], ...SLOTS.map((k) => [k, t('menu.slot.' + k)])];
+    setHtml(el, html`
+      <div class="row-actions"><button class="btn primary" id="new-recipe">${raw(ICONS.plus)}<span>${t('food.newRecipe')}</span></button><button class="btn" id="import-recipes">${t('imp.btn')}</button></div>
+      ${recipes.length === 0 ? html`<div class="card empty"><p>${t('food.noRecipes')}</p></div>` : html`
+      <div class="chips filter-chips">${filters.map(([k, label]) => html`<button class="chip ${st.filter === k ? 'on' : ''}" data-filter="${k}">${label}</button>`)}</div>
+      <div class="sel-top">${st.selecting ? html`<span class="muted small">${t('food.selectHint')}</span><button class="link" id="sel-all">${t('food.selectAll', { n: list.length })}</button>`
+        : html`<button class="link" id="sel-start">${t('food.select')}</button><span class="tiny muted">${t('food.selectLong')}</span>`}</div>
+      ${list.length === 0 ? html`<div class="card empty"><p>${t('food.filterEmpty')}</p></div>` : html`
+      <div class="card list ${st.selecting ? 'selecting' : ''}">${list.map((r) => {
+        const tt = totals(r.items, 1);
+        const on = st.sel.has(r.id);
+        return html`<div class="row static rec-row ${on ? 'picked' : ''}" data-rec="${r.id}">
+          ${st.selecting ? html`<span class="sel-dot ${on ? 'on' : ''}" aria-hidden="true">${on ? '✓' : ''}</span>` : ''}
+          <div class="grow"><strong>${r.name}</strong>${tagsOf(r).length ? html`<div class="tags">${tagsOf(r).map((k) => html`<span class="tag">${t('menu.slot.' + k)}</span>`)}</div>` : ''}<div class="muted small">${r.items.map((i) => i.name).join(', ')}</div>
+            <div class="muted small">${num(tt.kcal, 0)} kcal · P ${num(tt.protein, 0)} · C ${num(tt.carbs, 0)} · G ${num(tt.fat, 0)}</div></div>
+          ${st.selecting ? '' : html`<button class="icon-btn" data-edit="${r.id}" aria-label="${t('common.edit')}">${raw(ICONS.edit)}</button>
+          <button class="icon-btn" data-del="${r.id}" aria-label="${t('common.delete')}">${raw(ICONS.trash)}</button>`}
+        </div>`;
+      })}</div>`}`}
+      ${st.selecting ? html`<div class="sel-pad"></div><div class="sel-bar" role="toolbar">
+        <div class="sel-head"><strong>${t('food.selected', { n: st.sel.size })}</strong>
+          <div class="seg small" id="sel-mode"><button data-mode="add" class="${st.mode === 'add' ? 'on' : ''}">${t('food.modeAdd')}</button><button data-mode="remove" class="${st.mode === 'remove' ? 'on' : ''}">${t('food.modeRemove')}</button></div></div>
+        <div class="chips">${SLOTS.map((k) => html`<button class="chip" data-apply="${k}" ${st.sel.size && !st.busy ? '' : 'disabled'}>${t('menu.slot.' + k)}</button>`)}</div>
+        <div class="sel-foot"><button class="btn small" data-apply="clear" ${st.sel.size && !st.busy ? '' : 'disabled'}>${t('food.clearTags')}</button><button class="btn small ghost" id="sel-cancel">${t('common.cancel')}</button></div>
+      </div>` : ''}`);
+  };
+  const enter = (id) => { st.selecting = true; if (id) st.sel.add(id); draw(); };
+  const stop = () => { st.selecting = false; st.sel.clear(); draw(); };
+  // pulsación larga sobre una receta
+  let timer = null, startXY = null, pressed = false, suppressUntil = 0;
+  const cancelPress = () => { clearTimeout(timer); timer = null; };
+  el.addEventListener('pointerdown', (e) => {
+    const row = e.target.closest && e.target.closest('.rec-row');
+    if (!row || st.selecting || e.target.closest('button')) return;
+    startXY = [e.clientX, e.clientY];
+    timer = setTimeout(() => { timer = null; pressed = true; if (navigator.vibrate) navigator.vibrate(30); enter(row.dataset.rec); }, 550);
+  });
+  el.addEventListener('pointermove', (e) => { if (timer && startXY && Math.hypot(e.clientX - startXY[0], e.clientY - startXY[1]) > 10) cancelPress(); });
+  // Al soltar tras una pulsación larga, el "clic" que genera el propio dedo no debe marcar/desmarcar la receta (solo se ignora justo en ese instante).
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => el.addEventListener(ev, () => { cancelPress(); if (pressed) { pressed = false; suppressUntil = Date.now() + 150; } }));
+  el.addEventListener('contextmenu', (e) => { if (e.target.closest && e.target.closest('.rec-row')) e.preventDefault(); });
+  el.addEventListener('click', (e) => { if (Date.now() < suppressUntil) { suppressUntil = 0; e.stopPropagation(); e.preventDefault(); } }, true);
+
   on(el, 'click', '#new-recipe', () => openRecipeEditor(null));
   on(el, 'click', '#import-recipes', () => openImport(recipes));
+  on(el, 'click', '[data-filter]', (e, b) => { st.filter = b.dataset.filter; draw(); });
+  on(el, 'click', '#sel-start', () => enter(null));
+  on(el, 'click', '#sel-cancel', stop);
+  on(el, 'click', '#sel-all', () => { const ids = shown().map((r) => r.id); const all = ids.every((id) => st.sel.has(id)); ids.forEach((id) => (all ? st.sel.delete(id) : st.sel.add(id))); draw(); });
+  on(el, 'click', '[data-mode]', (e, b) => { st.mode = b.dataset.mode; draw(); });
+  on(el, 'click', '.rec-row', (e, row) => {
+    if (!st.selecting || e.target.closest('button')) return;
+    const id = row.dataset.rec;
+    if (st.sel.has(id)) st.sel.delete(id); else st.sel.add(id);
+    draw();
+  });
+  on(el, 'click', '[data-apply]', async (e, b) => {
+    if (!st.sel.size || st.busy) return;
+    const tag = b.dataset.apply;
+    // Se agrupan las recetas que quedan con las mismas etiquetas para hacer pocas peticiones.
+    const groups = new Map();
+    for (const r of recipes.filter((x) => st.sel.has(x.id))) {
+      const cur = new Set(tagsOf(r));
+      if (tag === 'clear') cur.clear(); else if (st.mode === 'add') cur.add(tag); else cur.delete(tag);
+      const next = SLOTS.filter((k) => cur.has(k));
+      const key = next.join(',');
+      if (!groups.has(key)) groups.set(key, { next, ids: [] });
+      groups.get(key).ids.push(r.id);
+    }
+    st.busy = true; draw();
+    try {
+      for (const g of groups.values()) await updateMany('recipes', g.ids, { meal_types: g.next });
+      const n = st.sel.size;
+      st.busy = false; st.selecting = false; st.sel.clear();
+      toast(t('food.tagged', { n }));
+      refresh();
+    } catch (err) {
+      st.busy = false; draw();
+      if (/meal_types/.test((err && err.message) || '')) toast(t('food.needSql'), 'error'); else fail(err);
+    }
+  });
   on(el, 'click', '[data-edit]', (e, b) => openRecipeEditor(recipes.find((r) => r.id === b.dataset.edit)));
   on(el, 'click', '[data-del]', async (e, b) => {
     if (!(await confirmBox(t('common.confirmDelete')))) return;
     try { await remove('recipes', b.dataset.del); toast(t('common.deleted')); refresh(); } catch (err) { fail(err); }
   });
+  draw();
 }
 
 function openRecipeEditor(recipe) {

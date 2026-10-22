@@ -9,6 +9,8 @@ import { html, raw, setHtml, on, openModal, spinner, addDays, dateLong, num, toN
 import { t } from '../i18n.js';
 
 const slotName = (s) => t('menu.slot.' + s);
+const BIG_KCAL = 900; // una ración de más de esto casi seguro es una olla entera
+const servOf = (r) => (Number(r.servings) > 0 ? Number(r.servings) : 1);
 const mealRow = (date, m) => ({
   date, meal_type: m.meal_type, name: m.name, recipe_id: m.recipe_id || null, factor: m.factor, items: m.items,
   kcal: m.kcal, protein_g: m.protein_g, carbs_g: m.carbs_g, fat_g: m.fat_g,
@@ -100,9 +102,14 @@ export function openImport(existing) {
       const all = rs.flatMap((r) => r.items);
       const nMissing = all.filter((i) => i.missing).length;
       const nEst = all.filter((i) => i.est).length;
+      const nBig = rs.filter((r) => servOf(r) === 1 && totals(r.items, 1).kcal > BIG_KCAL).length;
+      const nUntag = rs.filter((r) => !r.meal_types.length && !((byName.get(normName(r.name)) || {}).meal_types || []).length).length;
       const field = (it, f, label) => html`<label><span>${label}</span><input type="number" inputmode="decimal" step="any" min="0" data-f="${f}" value="${it[f]}"></label>`;
       setHtml(box, html`
         <p><strong>${t('imp.summary', { n: rs.length, new: nNew, upd: rs.length - nNew })}</strong> <span class="muted small">${st.fileName}</span></p>
+        <div class="note"><strong>${t('imp.servTitle')}</strong><p class="small">${t('imp.servNote')}</p>
+          ${nBig ? html`<p class="small"><b>${t('imp.bigCount', { n: nBig })}</b></p>` : ''}</div>
+        ${nUntag ? html`<div class="note warn"><strong>${t('imp.noType', { n: nUntag, total: rs.length })}</strong><p class="small">${t('imp.noTypeHelp')}</p></div>` : ''}
         ${nMissing ? html`<div class="note warn"><strong>${t('imp.missing', { n: nMissing })}</strong>
           <p class="small">${t('imp.missingHelp')}</p>
           <button class="btn small primary" id="im-complete" ${st.busy ? 'disabled' : ''}>${t('imp.complete')}</button></div>` : ''}
@@ -110,15 +117,21 @@ export function openImport(existing) {
         ${st.report ? html`<p class="note">${t('imp.completed', st.report)}</p>` : ''}
         ${nEst ? html`<p class="muted small">${t('imp.estHelp')}</p>` : ''}
         <div class="list imp-list">${rs.map((r, ri) => {
-          const tt = totals(r.items, 1);
+          const sv = servOf(r);
+          const tt = totals(r.items, 1 / sv);
+          const big = sv === 1 && tt.kcal > BIG_KCAL;
           const isNew = !byName.has(normName(r.name));
           return html`<details class="imp-rec" data-r="${ri}" ${st.open.has(ri) ? 'open' : ''}>
             <summary class="row static"><div class="grow"><strong>${r.name}</strong>
               <div class="muted small">${t('imp.items', { n: r.items.length })} · ${num(tt.kcal, 0)} kcal · P ${num(tt.protein, 0)} · C ${num(tt.carbs, 0)} · G ${num(tt.fat, 0)}</div>
-              ${r.meal_types.length ? html`<div class="tags">${r.meal_types.map((x) => html`<span class="tag">${slotName(x)}</span>`)}</div>` : ''}</div>
+              <div class="tags">${r.meal_types.map((x) => html`<span class="tag">${slotName(x)}</span>`)}${sv > 1 ? html`<span class="tag est">÷ ${num(sv, 2)}</span>` : ''}${big ? html`<span class="tag warn">${t('imp.bigBadge')}</span>` : ''}</div></div>
               <span class="imp-badge ${isNew ? 'new' : 'upd'}">${isNew ? t('imp.new') : t('imp.update')}</span></summary>
+            <div class="imp-rec-opts">
+              <label class="serv"><span>${t('imp.servLabel')}</span><input type="number" min="1" max="50" step="any" inputmode="decimal" data-sv value="${sv}"></label>
+              <div class="chips">${SLOTS.map((k) => html`<button type="button" class="chip ${r.meal_types.includes(k) ? 'on' : ''}" data-rtag="${k}">${slotName(k)}</button>`)}</div>
+            </div>
             <div class="imp-ings">${r.items.map((it, ii) => html`<div class="imp-ing" data-r="${ri}" data-i="${ii}">
-              <div class="imp-ing-head"><span class="grow"><strong>${it.name}</strong> <span class="muted small">${num(it.grams, 0)} g · ${num(itemTotals(it).kcal, 0)} kcal</span></span>
+              <div class="imp-ing-head"><span class="grow"><strong>${it.name}</strong> <span class="muted small">${num(it.grams / sv, 0)} g · ${num(itemTotals(it).kcal / sv, 0)} kcal</span></span>
                 ${it.missing ? html`<span class="tag warn">${t('imp.noData')}</span>` : it.est ? html`<span class="tag est">${t('imp.est.' + it.est)}</span>` : ''}</div>
               ${it.missing || it.est ? html`<p class="tiny muted">${t('imp.per100')}</p><div class="est-grid">${field(it, 'kcal100', 'kcal')}${field(it, 'p100', 'P')}${field(it, 'c100', 'C')}${field(it, 'f100', 'G')}</div>` : ''}
             </div>`)}</div></details>`;
@@ -132,6 +145,19 @@ export function openImport(existing) {
     const d = e.target;
     if (d && d.matches && d.matches('details.imp-rec')) { if (d.open) st.open.add(Number(d.dataset.r)); else st.open.delete(Number(d.dataset.r)); }
   }, true);
+  on(box, 'change', '[data-sv]', (e, inp) => {
+    const r = st.result.recipes[Number(inp.closest('.imp-rec').dataset.r)];
+    const n = Number(String(inp.value).replace(',', '.'));
+    r.servings = n > 0 && n <= 50 ? n : 1;
+    draw();
+  });
+  on(box, 'click', '[data-rtag]', (e, b) => {
+    const r = st.result.recipes[Number(b.closest('.imp-rec').dataset.r)];
+    const set = new Set(r.meal_types);
+    if (set.has(b.dataset.rtag)) set.delete(b.dataset.rtag); else set.add(b.dataset.rtag);
+    r.meal_types = SLOTS.filter((k) => set.has(k));
+    draw();
+  });
   on(box, 'change', '.est-grid input', (e, inp) => {
     const row = inp.closest('.imp-ing');
     const it = st.result.recipes[Number(row.dataset.r)].items[Number(row.dataset.i)];
@@ -165,22 +191,23 @@ export function openImport(existing) {
     st.busy = true; draw();
     try {
       const fresh = [], updates = [];
-      const clean = (items) => items.map(({ missing: _m, ...it }) => it); // 'missing' es solo una marca de la vista previa
+      // 'missing' es solo una marca de la vista previa; si la receta da varias raciones, se guarda UNA ración (gramos divididos).
+      const prep = (r) => r.items.map(({ missing: _m, ...it }) => (servOf(r) === 1 ? it : { ...it, grams: Math.round((it.grams / servOf(r)) * 10) / 10 }));
       for (const r of st.result.recipes) {
         const old = byName.get(normName(r.name));
         if (old) updates.push([old, r]); else fresh.push(r);
       }
       let sqlMissing = false;
       if (fresh.length) {
-        try { await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: clean(r.items), meal_types: r.meal_types }))); } catch (e) {
+        try { await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: prep(r), meal_types: r.meal_types }))); } catch (e) {
           if (!/meal_types/.test((e && e.message) || '')) throw e;
           sqlMissing = true;
-          await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: clean(r.items) })));
+          await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: prep(r) })));
         }
       }
       for (const [old, r] of updates) {
         // Si el archivo no trae tipo para esa receta, se conservan las etiquetas que ya tenía.
-        const row = { name: r.name, items: clean(r.items), meal_types: r.meal_types.length ? r.meal_types : old.meal_types || [] };
+        const row = { name: r.name, items: prep(r), meal_types: r.meal_types.length ? r.meal_types : old.meal_types || [] };
         if (sqlMissing) delete row.meal_types;
         try { await update('recipes', old.id, row); } catch (e) {
           if (!/meal_types/.test((e && e.message) || '')) throw e;

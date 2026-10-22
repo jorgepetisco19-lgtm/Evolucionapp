@@ -1,6 +1,6 @@
 // Textos de la app en español (por defecto) e inglés.
 const es = {
-  'common.close': 'Cerrar', 'common.error': 'Algo ha fallado al cargar esta pantalla.', 'common.retry': 'Reintentar',
+  'common.cancel': 'Cancelar', 'common.close': 'Cerrar', 'common.error': 'Algo ha fallado al cargar esta pantalla.', 'common.retry': 'Reintentar',
   'common.date': 'Fecha', 'common.save': 'Guardar', 'common.saved': 'Guardado', 'common.delete': 'Borrar', 'common.deleted': 'Borrado',
   'common.edit': 'Editar', 'common.confirmDelete': '¿Seguro que quieres borrarlo? No se puede deshacer.',
 
@@ -70,10 +70,16 @@ const es = {
   'imp.warnings': 'Avisos ({n})', 'imp.row': 'Fila {n}', 'imp.more': 'y {n} más', 'imp.run': 'Importar recetas ({n})', 'imp.done': 'Importadas: {new} nuevas, {upd} actualizadas',
   'imp.err.empty': 'El archivo está vacío.', 'imp.err.headers': 'No reconozco las columnas. Necesito al menos receta, ingrediente y gramos (o kcal por ración). Descarga la plantilla.',
   'imp.err.none': 'No he encontrado recetas válidas en el archivo.', 'imp.err.read': 'No se pudo leer el archivo',
+  'imp.servTitle': 'Una receta = una ración', 'imp.servNote': 'Cada receta se importa como UNA sola comida. Si tus cantidades dan para varias comidas (por ejemplo, una olla), indica cuántas raciones da cada receta (ábrela) o añade en tu Excel una columna «Raciones» y vuelve a importar. La app dividirá los gramos entre ese número.',
+  'imp.bigCount': 'Recetas de más de 900 kcal: {n}. ¿Dan para varias comidas?', 'imp.bigBadge': '¿varias raciones?', 'imp.servLabel': 'Raciones que da',
+  'imp.noType': '{n} de {total} recetas no tienen toma (desayuno, comida, merienda o cena)', 'imp.noTypeHelp': 'El menú del día solo las propondrá para comida o cena. Puedes etiquetarlas ahora (abre la receta y elige la toma), hacerlo después en cada receta, o añadir una columna «Tipo» en tu Excel y volver a importar.',
   'imp.missing': 'Ingredientes sin kcal ni macros: {n}', 'imp.missingHelp': 'Puedo estimarlos con una tabla de ingredientes habituales y, si no están, con Open Food Facts. Si no los completas, se guardarán con 0 kcal.',
   'imp.complete': 'Completar los que faltan', 'imp.completing': 'Buscando {i} de {n}…', 'imp.completed': 'Completados: {db} con la tabla interna, {off} con Open Food Facts. Sin datos: {none}.',
   'imp.noData': 'sin datos', 'imp.est.db': 'estimado · tabla', 'imp.est.off': 'estimado · Open Food Facts', 'imp.per100': 'Valores por 100 g (puedes corregirlos)',
   'imp.estHelp': 'Abre cada receta para revisar los valores estimados y corregirlos antes de importar.',
+    'food.filterAll': 'Todas', 'food.filterNone': 'Sin toma', 'food.filterEmpty': 'No hay recetas con este filtro.', 'food.select': 'Seleccionar', 'food.selectLong': 'o mantén pulsada una receta',
+  'food.selectHint': 'Toca las recetas para marcarlas', 'food.selectAll': 'Marcar las {n} visibles', 'food.selected': '{n} seleccionadas', 'food.modeAdd': 'Añadir toma', 'food.modeRemove': 'Quitar toma',
+  'food.clearTags': 'Quitar todas las tomas', 'food.tagged': 'Etiquetas actualizadas en {n} recetas',
   'food.estimated': 'estimado', 'food.estimate': 'Estimar valores', 'food.estNone': 'No he encontrado valores para ese ingrediente', 'food.estDone': 'Estimado con: {src}. Revísalo antes de añadir.', 'food.estFrom.db': 'tabla interna', 'food.estFrom.off': 'Open Food Facts',
   'food.type.breakfast': 'Desayuno', 'food.type.lunch': 'Comida', 'food.type.dinner': 'Cena', 'food.type.snack': 'Snack', 'food.type.other': 'Otro',
   'food.myRecipes': 'Mis recetas', 'food.newMeal': 'Nueva comida', 'food.noRecipes': 'Todavía no tienes recetas guardadas.',
@@ -138,7 +144,7 @@ const es = {
 };
 
 const en = {
-  'common.close': 'Close', 'common.error': 'Something went wrong loading this screen.', 'common.retry': 'Retry',
+  'common.cancel': 'Cancel', 'common.close': 'Close', 'common.error': 'Something went wrong loading this screen.', 'common.retry': 'Retry',
   'common.date': 'Date', 'common.save': 'Save', 'common.saved': 'Saved', 'common.delete': 'Delete', 'common.deleted': 'Deleted',
   'common.edit': 'Edit', 'common.confirmDelete': 'Delete it for good? This cannot be undone.',
 
@@ -208,10 +214,16 @@ const en = {
   'imp.warnings': 'Warnings ({n})', 'imp.row': 'Row {n}', 'imp.more': 'and {n} more', 'imp.run': 'Import recipes ({n})', 'imp.done': 'Imported: {new} new, {upd} updated',
   'imp.err.empty': 'The file is empty.', 'imp.err.headers': 'I do not recognise the columns. I need at least recipe, ingredient and grams (or kcal per serving). Download the template.',
   'imp.err.none': 'No valid recipes found in the file.', 'imp.err.read': 'The file could not be read',
+  'imp.servTitle': 'One recipe = one serving', 'imp.servNote': 'Each recipe is imported as ONE single meal. If your amounts cover several meals (for example, a whole pot), set how many servings each recipe gives (open it) or add a “Servings” column to your Excel and import again. The app will divide the grams by that number.',
+  'imp.bigCount': 'Recipes over 900 kcal: {n}. Do they cover several meals?', 'imp.bigBadge': 'several servings?', 'imp.servLabel': 'Servings it gives',
+  'imp.noType': '{n} of {total} recipes have no meal type (breakfast, lunch, snack or dinner)', 'imp.noTypeHelp': 'The menu of the day will only suggest them for lunch or dinner. You can tag them now (open the recipe and pick the meal), do it later on each recipe, or add a “Type” column to your Excel and import again.',
   'imp.missing': 'Ingredients without kcal or macros: {n}', 'imp.missingHelp': 'I can estimate them from a table of common ingredients and, if missing there, from Open Food Facts. If you do not complete them they are saved with 0 kcal.',
   'imp.complete': 'Fill in the missing ones', 'imp.completing': 'Searching {i} of {n}…', 'imp.completed': 'Filled in: {db} from the built-in table, {off} from Open Food Facts. No data: {none}.',
   'imp.noData': 'no data', 'imp.est.db': 'estimated · table', 'imp.est.off': 'estimated · Open Food Facts', 'imp.per100': 'Values per 100 g (you can correct them)',
   'imp.estHelp': 'Open each recipe to review the estimated values and correct them before importing.',
+    'food.filterAll': 'All', 'food.filterNone': 'No meal', 'food.filterEmpty': 'No recipes with this filter.', 'food.select': 'Select', 'food.selectLong': 'or long-press a recipe',
+  'food.selectHint': 'Tap recipes to select them', 'food.selectAll': 'Select the {n} shown', 'food.selected': '{n} selected', 'food.modeAdd': 'Add meal', 'food.modeRemove': 'Remove meal',
+  'food.clearTags': 'Clear all meals', 'food.tagged': 'Tags updated on {n} recipes',
   'food.estimated': 'estimated', 'food.estimate': 'Estimate values', 'food.estNone': 'I could not find values for that ingredient', 'food.estDone': 'Estimated from: {src}. Check it before adding.', 'food.estFrom.db': 'built-in table', 'food.estFrom.off': 'Open Food Facts',
   'food.type.breakfast': 'Breakfast', 'food.type.lunch': 'Lunch', 'food.type.dinner': 'Dinner', 'food.type.snack': 'Snack', 'food.type.other': 'Other',
   'food.myRecipes': 'My recipes', 'food.newMeal': 'New meal', 'food.noRecipes': 'You have no saved recipes yet.',

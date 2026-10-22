@@ -62,6 +62,7 @@ function classify(h) {
   if (/^(receta|recetas|plato|recipe|nombrereceta|nombredelareceta|nombredelplato)$/.test(k)) return 'recipe';
   if (/^(tipo|tipodecomida|momento|cuando|meal|type|categoria|comida|toma)$/.test(k)) return 'types';
   if (/^(ingrediente|ingredientes|alimento|ingredient|food)$/.test(k)) return 'ingredient';
+  if (/^(raciones|racion|porciones|porcion|servings|serving|rations|numeroderaciones|nraciones)$/.test(k)) return 'servings';
   if (/^(gramos|gr|g|cantidad|cantidadg|peso|grams|qty)$/.test(k)) return 'grams';
   if (/^(kcal|calorias|calories|energia|energy)/.test(k)) return k.includes('100') ? 'kcal100' : 'kcal';
   if (/^(prot|proteina|proteinas|protein)/.test(k)) return k.includes('100') ? 'p100' : 'p';
@@ -124,6 +125,7 @@ export function buildRecipes(table) {
   };
   const cell = (r, i) => (i === undefined ? null : r[i]);
   const seen = new Map(); // nombre -> fila donde aparece
+  const servingsOf = new Map(); // nombre -> raciones que da la receta (columna opcional)
   let curName = '', curSlots = [];
   for (let n = hi + 1; n < rows.length; n++) {
     const r = rows[n];
@@ -141,6 +143,12 @@ export function buildRecipes(table) {
       if (sl.slots.length) curSlots = [...new Set([...curSlots, ...sl.slots])];
     }
     if (!curName) { warn(line, 'fila sin nombre de receta'); continue; }
+    const rawServ = cell(r, col.servings);
+    if (rawServ !== undefined && rawServ !== null && rawServ !== '') {
+      const sv = parseNumber(rawServ);
+      if (sv !== null && sv > 0 && sv <= 50) servingsOf.set(strip(curName), sv);
+      else warn(line, `"${curName}": raciones no válidas ("${rawServ}"), se usa 1`);
+    }
     let k = parseNumber(cell(r, kcalCol)), p = parseNumber(cell(r, pCol)), c = parseNumber(cell(r, cCol)), f = parseNumber(cell(r, fCol));
     if (layout === 'items') {
       const ing = String(cell(r, col.ingredient) ?? '').trim();
@@ -169,7 +177,7 @@ export function buildRecipes(table) {
     }
   }
   const recipes = order.map((key) => byName.get(key)).filter((x) => x.items.length)
-    .map((x) => ({ name: x.name, meal_types: MEAL_SLOTS.filter((s) => x.meal_types.has(s)), items: x.items }));
+    .map((x) => ({ name: x.name, meal_types: MEAL_SLOTS.filter((s) => x.meal_types.has(s)), servings: servingsOf.get(strip(x.name)) ?? 1, items: x.items }));
   for (const [key, v] of seen) if (!(byName.get(key) && byName.get(key).items.length)) warn(v.line, `"${v.name}": sin ingredientes válidos, no se importa`);
   return { layout, recipes, warnings, error: recipes.length ? null : 'none' };
 }
@@ -177,14 +185,14 @@ export function buildRecipes(table) {
 // Plantilla descargable (separador ";" y decimales con coma: se abre bien en Excel en español).
 export function csvTemplate() {
   const L = [
-    'receta;tipo;ingrediente;gramos;kcal_100g;proteinas_100g;hidratos_100g;grasas_100g',
-    'Pollo con arroz;comida/cena;Pechuga de pollo;150;110;23;0;1,5',
-    'Pollo con arroz;;Arroz blanco cocido;200;130;2,7;28;0,3',
-    'Pollo con arroz;;Aceite de oliva;10;884;0;0;100',
-    'Tostada con aguacate;desayuno;Pan integral;60;250;9;45;3',
-    'Tostada con aguacate;;Aguacate;50;160;2;9;15',
-    'Yogur con nueces;merienda;Yogur natural;125;60;4,5;5;3',
-    'Yogur con nueces;;Nueces;15;654;15;14;65',
+    'receta;tipo;raciones;ingrediente;gramos;kcal_100g;proteinas_100g;hidratos_100g;grasas_100g',
+    'Pollo con arroz;comida/cena;1;Pechuga de pollo;150;110;23;0;1,5',
+    'Pollo con arroz;;;Arroz blanco cocido;200;130;2,7;28;0,3',
+    'Pollo con arroz;;;Aceite de oliva;10;884;0;0;100',
+    'Tostada con aguacate;desayuno;1;Pan integral;60;250;9;45;3',
+    'Tostada con aguacate;;;Aguacate;50;160;2;9;15',
+    'Yogur con nueces;merienda;1;Yogur natural;125;60;4,5;5;3',
+    'Yogur con nueces;;;Nueces;15;654;15;14;65',
   ];
   return '﻿' + L.join('\r\n') + '\r\n';
 }

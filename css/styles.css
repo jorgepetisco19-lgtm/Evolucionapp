@@ -316,3 +316,25 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .manual #m-est { grid-column: 1 / -1; justify-self: start; align-self: start; }
 .manual #m-est-note:empty { display: none; }
 .manual #m-add { grid-column: 1 / -1; justify-self: start; align-self: start; }
+.imp-rec-opts { padding: 0 0 8px; }
+.imp-rec-opts .chips { margin: 8px 0 0; }
+.serv { display: flex; align-items: center; gap: 10px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+.serv input { width: 84px; min-height: 36px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+
+/* ---- selección múltiple de recetas ---- */
+.filter-chips { margin: 0 0 8px; }
+.sel-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; min-height: 28px; }
+.rec-row { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.rec-row.picked { background: var(--primary-soft); }
+.sel-dot { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-size: .8rem; font-weight: 800; color: var(--primary-ink); }
+.sel-dot.on { background: var(--primary); border-color: var(--primary); }
+.sel-pad { height: 190px; }
+.sel-bar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); width: min(640px, 100%); z-index: 31; padding: 10px 16px 12px; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(0, 0, 0, .12); }
+.sel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 8px; }
+.sel-head .seg { margin: 0; }
+.sel-bar .chips { margin: 0 0 8px; }
+.sel-bar .chip[disabled] { opacity: .45; }
+.sel-foot { display: flex; gap: 8px; justify-content: space-between; }
+.sel-bar .chips { flex-wrap: nowrap; gap: 6px; }
+.sel-bar .chip { padding: 0 10px; font-size: .85rem; flex: 1; justify-content: center; }
+.sel-dot { box-sizing: border-box; margin-right: 10px; }
