@@ -19,6 +19,7 @@ export async function render(el, params) {
     <div id="photos-content"></div>`);
   on(el, 'click', '.seg [data-tab]', (e, b) => navigate('photos', { tab: b.dataset.tab }));
   const box = el.querySelector('#photos-content');
+  setHtml(box, spinner()); // mientras llegan los datos se ve el círculo, no un hueco vacío
   if (tab === 'compare') {
     const { renderCompare } = await import('./compare.js');
     await renderCompare(box);

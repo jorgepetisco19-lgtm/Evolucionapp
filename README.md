@@ -22,6 +22,7 @@ js/app.js           arranque, sesión, navegación por pestañas
 js/views/           una pantalla por archivo (inicio, cuerpo, fotos, comparador, comidas, deporte, ajustes)
 js/ocr.js           lectura de la captura (2 pasadas: etiquetas y números)
 js/db.js            todo el acceso a Supabase
+js/net.js           corta las peticiones que no responden (12 s) y reintenta las lecturas una vez
 js/i18n.js          textos en español e inglés
 supabase/schema.sql tablas + seguridad (se ejecuta una vez)
 sw.js               caché para que abra rápido y sin conexión

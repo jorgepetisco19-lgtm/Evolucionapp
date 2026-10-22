@@ -24,6 +24,7 @@ export async function render(el, params) {
     <div id="food-content"></div>`);
   on(el, 'click', '.seg [data-tab]', (e, b) => navigate('food', { tab: b.dataset.tab }));
   const box = el.querySelector('#food-content');
+  setHtml(box, spinner()); // mientras llegan los datos se ve el círculo, no un hueco vacío
   if (tab === 'day') await renderDay(box, params); else await renderRecipes(box);
 }
 

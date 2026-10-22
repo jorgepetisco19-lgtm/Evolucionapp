@@ -97,6 +97,11 @@ async function renderRoute() {
   view.tabIndex = -1;
   old.replaceWith(view);
   setHtml(view, spinner());
+  // Si tarda más de lo normal, se avisa en pantalla en vez de dejar un círculo girando sin explicación.
+  const slow = setTimeout(() => {
+    const l = my === token ? view.querySelector('.loading') : null;
+    if (l && !l.textContent.trim()) l.append(t('common.slow'));
+  }, 4000);
   try {
     const mod = await VIEWS[name]();
     if (my !== token) return;
@@ -107,6 +112,8 @@ async function renderRoute() {
     console.error(e);
     setHtml(view, html`<div class="card error-card"><p>${t('common.error')}</p><p class="tiny muted">${(e && e.message) || e}</p><button class="btn" id="retry">${t('common.retry')}</button></div>`);
     view.querySelector('#retry').onclick = renderRoute;
+  } finally {
+    clearTimeout(slow);
   }
 }
 

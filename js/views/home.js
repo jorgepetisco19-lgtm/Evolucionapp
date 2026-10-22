@@ -1,7 +1,7 @@
 // Inicio: calendario con lo que has registrado cada día. Al tocar un día se ve el resumen y se salta al registro.
 import { listRange } from '../db.js';
 import { renderCalendar, buildMarkers } from '../calendar.js';
-import { html, raw, setHtml, monthRange, todayStr, parseDate, dateLong, num, navigate, on } from '../util.js';
+import { html, raw, setHtml, spinner, monthRange, todayStr, parseDate, dateLong, num, navigate, on } from '../util.js';
 import { t } from '../i18n.js';
 import { renderSteps } from '../onboarding.js';
 import { ICONS } from '../icons.js';
@@ -18,7 +18,7 @@ export async function render(el, params) {
   setHtml(el, html`
     <section class="home">
       <div id="steps"></div>
-      <div class="card" id="cal"></div>
+      <div class="card" id="cal">${spinner()}</div>
       <div class="row-actions">
         <button class="btn ghost" id="today">${t('home.today')}</button>
         <button class="btn" id="compare">${raw(ICONS.compare)}<span>${t('home.compare')}</span></button>

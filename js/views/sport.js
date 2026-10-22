@@ -2,7 +2,7 @@
 import { listRange, listAll, insert, update, remove } from '../db.js';
 import { exerciseEditor, summarize, cleanExercises, setsText } from '../exercises.js';
 import {
-  html, raw, setHtml, on, openModal, todayStr, addDays, dateLong, toNum, fail, toast, navigate, refresh, confirmBox, weekdayIndex,
+  html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, toNum, fail, toast, navigate, refresh, confirmBox, weekdayIndex,
 } from '../util.js';
 import { t, locale } from '../i18n.js';
 import { ICONS } from '../icons.js';
@@ -21,6 +21,7 @@ export async function render(el, params) {
     <div id="sport-content"></div>`);
   on(el, 'click', '.seg [data-tab]', (e, b) => navigate('sport', { tab: b.dataset.tab }));
   const box = el.querySelector('#sport-content');
+  setHtml(box, spinner()); // mientras llegan los datos se ve el círculo, no un hueco vacío
   if (tab === 'day') await renderDay(box, params); else await renderRoutines(box);
 }
 

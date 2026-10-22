@@ -1,11 +1,13 @@
 // Acceso a Supabase: sesión, tablas y fotos. Toda la app habla con la nube a través de este archivo.
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { fetchWithTimeout } from './net.js';
 
 if (!window.supabase) throw new Error('Supabase no se ha cargado (vendor/supabase.js)');
 
 export const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   // PKCE devuelve el código en ?code=... y no en el #hash, que usamos para navegar entre pantallas.
   auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
+  global: { fetch: fetchWithTimeout }, // ninguna petición se queda colgada para siempre (ver net.js)
 });
 
 export const session = { user: null };

@@ -1,6 +1,6 @@
 // Textos de la app en español (por defecto) e inglés.
 const es = {
-  'common.cancel': 'Cancelar', 'common.close': 'Cerrar', 'common.error': 'Algo ha fallado al cargar esta pantalla.', 'common.retry': 'Reintentar',
+  'common.cancel': 'Cancelar', 'common.close': 'Cerrar', 'common.error': 'Algo ha fallado al cargar esta pantalla.', 'common.retry': 'Reintentar', 'common.slow': 'Está tardando más de lo normal…',
   'common.date': 'Fecha', 'common.save': 'Guardar', 'common.saved': 'Guardado', 'common.delete': 'Borrar', 'common.deleted': 'Borrado',
   'common.edit': 'Editar', 'common.confirmDelete': '¿Seguro que quieres borrarlo? No se puede deshacer.',
 
@@ -145,7 +145,7 @@ const es = {
 };
 
 const en = {
-  'common.cancel': 'Cancel', 'common.close': 'Close', 'common.error': 'Something went wrong loading this screen.', 'common.retry': 'Retry',
+  'common.cancel': 'Cancel', 'common.close': 'Close', 'common.error': 'Something went wrong loading this screen.', 'common.retry': 'Retry', 'common.slow': 'Taking longer than usual…',
   'common.date': 'Date', 'common.save': 'Save', 'common.saved': 'Saved', 'common.delete': 'Delete', 'common.deleted': 'Deleted',
   'common.edit': 'Edit', 'common.confirmDelete': 'Delete it for good? This cannot be undone.',
 

@@ -32,7 +32,9 @@ export async function render(el, params) {
     </div>
     <div id="body-content"></div>`);
   on(el, 'click', '.seg [data-tab]', (e, b) => navigate('body', { tab: b.dataset.tab }));
-  await renderRecords(el.querySelector('#body-content'), tab, params);
+  const box = el.querySelector('#body-content');
+  setHtml(box, spinner()); // mientras llegan los datos se ve el círculo, no un hueco vacío
+  await renderRecords(box, tab, params);
 }
 
 async function renderRecords(el, tab, params) {
