@@ -1,10 +1,11 @@
 // Herramientas de Comidas: importar recetas (CSV/Excel), repetir comidas de otro día y sugerir el menú del día.
 import { listRange, insert, insertMany, update, session } from '../db.js';
-import { totals } from '../off.js';
+import { totals, itemTotals } from '../off.js';
+import { completeItems } from '../estimate.js';
 import { csvTemplate, parseCsv, decodeCsv, buildRecipes, normName } from '../recipe-import.js';
 import { readXlsx } from '../xlsx-read.js';
 import { suggest, describe, sumSlots, SLOTS } from '../menu.js';
-import { html, raw, setHtml, on, openModal, spinner, addDays, dateLong, num, fail, toast, refresh, navigate } from '../util.js';
+import { html, raw, setHtml, on, openModal, spinner, addDays, dateLong, num, toNum, fail, toast, refresh, navigate } from '../util.js';
 import { t } from '../i18n.js';
 
 const slotName = (s) => t('menu.slot.' + s);
@@ -77,7 +78,7 @@ async function readTable(file) {
 export function openImport(existing) {
   const byName = new Map();
   existing.forEach((r) => { if (!byName.has(normName(r.name))) byName.set(normName(r.name), r); });
-  const st = { stage: 'pick', busy: false, error: '', result: null, fileName: '' };
+  const st = { stage: 'pick', busy: false, error: '', result: null, fileName: '', open: new Set(), progress: null, report: null };
   const m = openModal(html`<div id="im"></div>`, { title: t('imp.title'), wide: true });
   const box = m.body.querySelector('#im');
   const draw = () => {
@@ -96,21 +97,56 @@ export function openImport(existing) {
       const rs = st.result.recipes;
       const nNew = rs.filter((r) => !byName.has(normName(r.name))).length;
       const w = st.result.warnings;
+      const all = rs.flatMap((r) => r.items);
+      const nMissing = all.filter((i) => i.missing).length;
+      const nEst = all.filter((i) => i.est).length;
+      const field = (it, f, label) => html`<label><span>${label}</span><input type="number" inputmode="decimal" step="any" min="0" data-f="${f}" value="${it[f]}"></label>`;
       setHtml(box, html`
         <p><strong>${t('imp.summary', { n: rs.length, new: nNew, upd: rs.length - nNew })}</strong> <span class="muted small">${st.fileName}</span></p>
-        <div class="list imp-list">${rs.map((r) => {
+        ${nMissing ? html`<div class="note warn"><strong>${t('imp.missing', { n: nMissing })}</strong>
+          <p class="small">${t('imp.missingHelp')}</p>
+          <button class="btn small primary" id="im-complete" ${st.busy ? 'disabled' : ''}>${t('imp.complete')}</button></div>` : ''}
+        ${st.progress ? html`<div id="im-prog">${spinner(t('imp.completing', st.progress))}</div>` : ''}
+        ${st.report ? html`<p class="note">${t('imp.completed', st.report)}</p>` : ''}
+        ${nEst ? html`<p class="muted small">${t('imp.estHelp')}</p>` : ''}
+        <div class="list imp-list">${rs.map((r, ri) => {
           const tt = totals(r.items, 1);
           const isNew = !byName.has(normName(r.name));
-          return html`<div class="row static"><div class="grow"><strong>${r.name}</strong>
-            <div class="muted small">${t('imp.items', { n: r.items.length })} · ${num(tt.kcal, 0)} kcal · P ${num(tt.protein, 0)} · C ${num(tt.carbs, 0)} · G ${num(tt.fat, 0)}</div>
-            ${r.meal_types.length ? html`<div class="tags">${r.meal_types.map((s) => html`<span class="tag">${slotName(s)}</span>`)}</div>` : ''}</div>
-            <span class="imp-badge ${isNew ? 'new' : 'upd'}">${isNew ? t('imp.new') : t('imp.update')}</span></div>`;
+          return html`<details class="imp-rec" data-r="${ri}" ${st.open.has(ri) ? 'open' : ''}>
+            <summary class="row static"><div class="grow"><strong>${r.name}</strong>
+              <div class="muted small">${t('imp.items', { n: r.items.length })} · ${num(tt.kcal, 0)} kcal · P ${num(tt.protein, 0)} · C ${num(tt.carbs, 0)} · G ${num(tt.fat, 0)}</div>
+              ${r.meal_types.length ? html`<div class="tags">${r.meal_types.map((x) => html`<span class="tag">${slotName(x)}</span>`)}</div>` : ''}</div>
+              <span class="imp-badge ${isNew ? 'new' : 'upd'}">${isNew ? t('imp.new') : t('imp.update')}</span></summary>
+            <div class="imp-ings">${r.items.map((it, ii) => html`<div class="imp-ing" data-r="${ri}" data-i="${ii}">
+              <div class="imp-ing-head"><span class="grow"><strong>${it.name}</strong> <span class="muted small">${num(it.grams, 0)} g · ${num(itemTotals(it).kcal, 0)} kcal</span></span>
+                ${it.missing ? html`<span class="tag warn">${t('imp.noData')}</span>` : it.est ? html`<span class="tag est">${t('imp.est.' + it.est)}</span>` : ''}</div>
+              ${it.missing || it.est ? html`<p class="tiny muted">${t('imp.per100')}</p><div class="est-grid">${field(it, 'kcal100', 'kcal')}${field(it, 'p100', 'P')}${field(it, 'c100', 'C')}${field(it, 'f100', 'G')}</div>` : ''}
+            </div>`)}</div></details>`;
         })}</div>
         ${w.length ? html`<details class="warn-box"><summary>${t('imp.warnings', { n: w.length })}</summary><ul>${w.slice(0, 12).map((x) => html`<li>${x.row ? t('imp.row', { n: x.row }) + ': ' : ''}${x.text}</li>`)}${w.length > 12 ? html`<li>${t('imp.more', { n: w.length - 12 })}</li>` : ''}</ul></details>` : ''}
         <div class="form-actions two"><button class="btn" id="im-back">${t('imp.other')}</button><button class="btn primary" id="im-run" ${st.busy ? 'disabled' : ''}>${t('imp.run', { n: rs.length })}</button></div>
         ${st.busy ? spinner() : ''}`);
     }
   };
+  box.addEventListener('toggle', (e) => {
+    const d = e.target;
+    if (d && d.matches && d.matches('details.imp-rec')) { if (d.open) st.open.add(Number(d.dataset.r)); else st.open.delete(Number(d.dataset.r)); }
+  }, true);
+  on(box, 'change', '.est-grid input', (e, inp) => {
+    const row = inp.closest('.imp-ing');
+    const it = st.result.recipes[Number(row.dataset.r)].items[Number(row.dataset.i)];
+    it[inp.dataset.f] = toNum(inp.value) ?? 0;
+    if (it.missing && Number(inp.value) > 0) delete it.missing; // ya lo ha puesto la persona
+    draw();
+  });
+  on(box, 'click', '#im-complete', async () => {
+    const items = st.result.recipes.flatMap((r) => r.items);
+    st.busy = true; st.report = null; st.progress = { i: 0, n: new Set(items.filter((x) => x.missing).map((x) => x.name.toLowerCase().trim())).size }; draw();
+    try {
+      st.report = await completeItems(items, { onProgress: (i, n) => { st.progress = { i, n }; const el = box.querySelector('#im-prog'); if (el) setHtml(el, spinner(t('imp.completing', st.progress))); } });
+    } catch (err) { fail(err); }
+    st.busy = false; st.progress = null; draw();
+  });
   on(box, 'click', '#im-tpl', () => download('plantilla-recetas.csv', csvTemplate(), 'text/csv;charset=utf-8'));
   on(box, 'click', '#im-pick', () => box.querySelector('#im-file').click());
   on(box, 'click', '#im-back', () => { st.stage = 'pick'; st.error = ''; draw(); });
@@ -129,21 +165,22 @@ export function openImport(existing) {
     st.busy = true; draw();
     try {
       const fresh = [], updates = [];
+      const clean = (items) => items.map(({ missing: _m, ...it }) => it); // 'missing' es solo una marca de la vista previa
       for (const r of st.result.recipes) {
         const old = byName.get(normName(r.name));
         if (old) updates.push([old, r]); else fresh.push(r);
       }
       let sqlMissing = false;
       if (fresh.length) {
-        try { await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: r.items, meal_types: r.meal_types }))); } catch (e) {
+        try { await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: clean(r.items), meal_types: r.meal_types }))); } catch (e) {
           if (!/meal_types/.test((e && e.message) || '')) throw e;
           sqlMissing = true;
-          await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: r.items })));
+          await insertMany('recipes', fresh.map((r) => ({ name: r.name, items: clean(r.items) })));
         }
       }
       for (const [old, r] of updates) {
         // Si el archivo no trae tipo para esa receta, se conservan las etiquetas que ya tenía.
-        const row = { name: r.name, items: r.items, meal_types: r.meal_types.length ? r.meal_types : old.meal_types || [] };
+        const row = { name: r.name, items: clean(r.items), meal_types: r.meal_types.length ? r.meal_types : old.meal_types || [] };
         if (sqlMissing) delete row.meal_types;
         try { await update('recipes', old.id, row); } catch (e) {
           if (!/meal_types/.test((e && e.message) || '')) throw e;

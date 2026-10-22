@@ -296,3 +296,23 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .slot-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .slot-actions .btn.primary { margin-left: auto; }
 .plan-line { padding: 10px 14px; }
+
+/* ---- completar kcal/macros ---- */
+.imp-rec { border-bottom: 1px solid var(--line); }
+.imp-rec:last-child { border-bottom: 0; }
+.imp-rec > summary { list-style: none; cursor: pointer; border-bottom: 0; }
+.imp-rec > summary::-webkit-details-marker { display: none; }
+.imp-ings { padding: 0 0 10px; }
+.imp-ing { padding: 8px 0 8px 10px; border-left: 3px solid var(--line); margin: 0 0 6px 4px; }
+.imp-ing-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.est-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+.est-grid label span { display: block; font-size: .7rem; color: var(--muted); font-weight: 600; }
+.est-grid input { width: 100%; min-width: 0; min-height: 36px; padding: 0 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); font: inherit; }
+.tag.warn { background: color-mix(in srgb, var(--orange) 18%, var(--surface)); color: var(--orange); }
+.tag.est { background: color-mix(in srgb, var(--yellow) 22%, var(--surface)); color: var(--text); }
+.est-flag { color: var(--orange); font-weight: 600; }
+.note.warn .btn { margin-top: 4px; }
+.manual > label:first-child, .manual #m-est-note { grid-column: 1 / -1; }
+.manual #m-est { grid-column: 1 / -1; justify-self: start; align-self: start; }
+.manual #m-est-note:empty { display: none; }
+.manual #m-add { grid-column: 1 / -1; justify-self: start; align-self: start; }

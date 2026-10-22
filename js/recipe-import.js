@@ -1,6 +1,7 @@
 // Importar recetas desde una tabla (CSV o Excel). Funciones puras: no tocan la pantalla ni la nube.
 // Formato recomendado: UNA FILA POR INGREDIENTE
 //   receta | tipo | ingrediente | gramos | kcal_100g | proteinas_100g | hidratos_100g | grasas_100g
+// Las columnas sin "100" (kcal, proteína...) se entienden como el total para los gramos de esa fila.
 // También vale UNA FILA POR RECETA con los totales de una ración: receta | tipo | kcal | proteinas | hidratos | grasas.
 
 export const MEAL_SLOTS = ['breakfast', 'lunch', 'snack', 'dinner'];
@@ -96,6 +97,7 @@ export function buildRecipes(table) {
   const col = {};
   rows[hi].forEach((h, i) => { const k = classify(h); if (k && col[k] === undefined) col[k] = i; });
   const kcalCol = col.kcal100 ?? col.kcal, pCol = col.p100 ?? col.p, cCol = col.c100 ?? col.c, fCol = col.f100 ?? col.f;
+  const any100 = [col.kcal100, col.p100, col.c100, col.f100].some((x) => x !== undefined);
   let layout = null;
   if (col.ingredient !== undefined) layout = 'items';
   else if (kcalCol !== undefined) layout = 'recipes';
@@ -134,19 +136,24 @@ export function buildRecipes(table) {
     }
     if (!curName) { warn(line, 'fila sin nombre de receta'); continue; }
     let k = parseNumber(cell(r, kcalCol)), p = parseNumber(cell(r, pCol)), c = parseNumber(cell(r, cCol)), f = parseNumber(cell(r, fCol));
-    if (k === null && (p !== null || c !== null || f !== null)) k = 4 * (p || 0) + 4 * (c || 0) + 9 * (f || 0);
     if (layout === 'items') {
       const ing = String(cell(r, col.ingredient) ?? '').trim();
       if (!ing) continue; // fila solo con el nombre de la receta
       const g = parseNumber(cell(r, col.grams));
       if (g === null || g <= 0) { warn(line, `"${ing}": faltan los gramos`); continue; }
-      if (k === null) { warn(line, `"${ing}": faltan las kcal por 100 g`); continue; }
+      // Si alguna columna dice "100 g", todas van por 100 g. Si ninguna lo dice (kcal, proteína...), son el total de ESA fila: los gramos que lleva la receta.
+      const per = (v) => (v === null || any100 ? v : (v / g) * 100);
+      k = per(k); p = per(p); c = per(c); f = per(f);
+      if (k === null && (p !== null || c !== null || f !== null)) k = 4 * (p || 0) + 4 * (c || 0) + 9 * (f || 0);
+      const missing = k === null; // sin kcal ni macros: se importa igualmente y se puede completar después
+      if (missing) { k = 0; p = 0; c = 0; f = 0; }
       if (k > 950) warn(line, `"${ing}": ${Math.round(k)} kcal/100 g parece demasiado (¿son kcal de toda la ración?)`);
       const rec = get(curName, curSlots);
       if (!rec) { warn(line, 'demasiadas recetas (máximo 500)'); break; }
       if (rec.items.length >= MAX_ITEMS) { warn(line, `"${curName}": máximo ${MAX_ITEMS} ingredientes`); continue; }
-      rec.items.push({ name: ing.slice(0, 120), grams: r1(g), kcal100: r1(k), p100: r1(p || 0), c100: r1(c || 0), f100: r1(f || 0) });
+      rec.items.push({ name: ing.slice(0, 120), grams: r1(g), kcal100: r1(k), p100: r1(p || 0), c100: r1(c || 0), f100: r1(f || 0), ...(missing ? { missing: true } : {}) });
     } else {
+      if (k === null && (p !== null || c !== null || f !== null)) k = 4 * (p || 0) + 4 * (c || 0) + 9 * (f || 0);
       if (k === null) { warn(line, `"${curName}": faltan las kcal`); continue; }
       const rec = get(curName, curSlots);
       if (!rec) { warn(line, 'demasiadas recetas (máximo 500)'); break; }

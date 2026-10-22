@@ -4,6 +4,7 @@ import { searchFoods, totals } from '../off.js';
 import { currentPlan } from '../plan.js';
 import { openImport, openCopyMeals, openSuggest, saveRecipeRow } from './food-tools.js';
 import { SLOTS } from '../menu.js';
+import { estimateOne } from '../estimate.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, num, toNum, fail, toast, navigate, refresh, confirmBox,
 } from '../util.js';
@@ -178,7 +179,7 @@ function builder(el, { mode, init, onSubmit }) {
   const state = { name: init ? init.name : '', items: init ? JSON.parse(JSON.stringify(init.items)) : [], results: null, searching: false, error: '', manual: false, saveRecipe: false, tags: new Set(init && init.meal_types ? init.meal_types : []) };
 
   const itemRow = (it, i) => html`<div class="item" data-i="${i}">
-    <div class="grow"><strong>${it.name}</strong><div class="muted tiny">${num(it.kcal100, 0)} kcal/100 g</div></div>
+    <div class="grow"><strong>${it.name}</strong><div class="muted tiny">${num(it.kcal100, 0)} kcal/100 g${it.est ? html` · <span class="est-flag">${t('food.estimated')}</span>` : ''}</div></div>
     <input class="grams" type="number" inputmode="decimal" step="any" min="0" value="${it.grams}" aria-label="${t('food.grams')}"><span class="muted small">g</span>
     <button type="button" class="icon-btn" data-rm="${i}" aria-label="${t('common.delete')}">${raw(ICONS.trash)}</button>
   </div>`;
@@ -198,6 +199,8 @@ function builder(el, { mode, init, onSubmit }) {
         <button type="button" class="link" id="b-manual-toggle">${state.manual ? t('food.hideManual') : t('food.manual')}</button>
         ${state.manual ? html`<div class="manual grid2">
           <label class="field"><span>${t('food.ingName')}</span><input type="text" id="m-name"></label>
+          <button type="button" class="btn small" id="m-est">${t('food.estimate')}</button>
+          <p class="tiny muted" id="m-est-note"></p>
           <label class="field"><span>${t('food.grams')} (g)</span><input type="number" step="any" inputmode="decimal" id="m-g" value="100"></label>
           <label class="field"><span>kcal / 100 g</span><input type="number" step="any" inputmode="decimal" id="m-k"></label>
           <label class="field"><span>${t('food.protein')} / 100 g</span><input type="number" step="any" inputmode="decimal" id="m-p"></label>
@@ -244,13 +247,24 @@ function builder(el, { mode, init, onSubmit }) {
     const last = inputs[inputs.length - 1];
     if (last) { last.focus(); last.select(); }
   });
+  on(el, 'click', '#m-est', async (e, btn) => {
+    const name = el.querySelector('#m-name').value.trim();
+    if (name.length < 2) { toast(t('food.needIng'), 'error'); return; }
+    btn.disabled = true;
+    const est = await estimateOne(name);
+    btn.disabled = false;
+    if (!est) { toast(t('food.estNone'), 'error'); return; }
+    el.querySelector('#m-k').value = est.kcal100; el.querySelector('#m-p').value = est.p100; el.querySelector('#m-c').value = est.c100; el.querySelector('#m-f').value = est.f100;
+    state.estSource = est.source;
+    el.querySelector('#m-est-note').textContent = t('food.estDone', { src: t('food.estFrom.' + est.source) });
+  });
   on(el, 'click', '#m-add', () => {
     const name = el.querySelector('#m-name').value.trim();
     const g = toNum(el.querySelector('#m-g').value) ?? 0;
     const k = toNum(el.querySelector('#m-k').value);
     if (!name || k === null) { toast(t('food.needIng'), 'error'); return; }
-    state.items.push({ name, grams: g, kcal100: k, p100: toNum(el.querySelector('#m-p').value) ?? 0, c100: toNum(el.querySelector('#m-c').value) ?? 0, f100: toNum(el.querySelector('#m-f').value) ?? 0 });
-    state.manual = false; draw();
+    state.items.push({ name, grams: g, kcal100: k, p100: toNum(el.querySelector('#m-p').value) ?? 0, c100: toNum(el.querySelector('#m-c').value) ?? 0, f100: toNum(el.querySelector('#m-f').value) ?? 0, ...(state.estSource ? { est: state.estSource } : {}) });
+    state.estSource = null; state.manual = false; draw();
   });
   on(el, 'click', '#b-ok', async (e, btn) => {
     if (!state.items.length) { toast(t('food.needItems'), 'error'); return; }
