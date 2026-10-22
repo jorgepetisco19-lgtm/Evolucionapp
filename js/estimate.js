@@ -1,11 +1,11 @@
 // Completa kcal y macros de un ingrediente cuando no se conocen: primero la tabla propia (js/foods-db.js)
 // y, si no está, Open Food Facts (mediana de los primeros resultados). Si no encuentra nada, no se inventa nada.
 import { lookupFood, norm } from './foods-db.js';
-import { searchFoods } from './off.js';
+import { searchFoods, usingProxy } from './off.js';
 
 // Open Food Facts solo permite 10 búsquedas por minuto y por conexión (si te pasas, te bloquea): se va a un ritmo de una cada 6,5 s
 // y, si responde con error, se espera y se reintenta poco a poco. Los valores se pueden cambiar en pruebas.
-const gapMs = () => globalThis.__OFF_GAP_MS ?? 6500;
+const gapMs = () => globalThis.__OFF_GAP_MS ?? (usingProxy() ? 3000 : 6500); // por la función de Supabase se usa el buscador nuevo, que aguanta más
 const backoffMs = () => globalThis.__OFF_BACKOFF_MS ?? 30000;
 const sleep = (ms, signal) => new Promise((resolve) => {
   if (!(ms > 0) || (signal && signal.aborted)) return resolve();

@@ -2,6 +2,14 @@
 // Devuelve valores por 100 g: { name, kcal100, p100, c100, f100 }.
 const ENDPOINT = 'https://world.openfoodfacts.org/cgi/search.pl';
 
+// Open Food Facts bloquea desde el navegador sus buscadores (no envía el permiso CORS), así que la búsqueda va por una función de Supabase
+// (supabase/functions/off-search) que la hace desde el servidor. `app.js` le pasa aquí cómo llamarla. Si la función no está puesta o falla,
+// se prueba la llamada directa de siempre (que a veces funciona) y se deja de intentar con la función durante 2 minutos.
+let proxy = null;
+let proxyOffUntil = 0;
+export const setSearchProxy = (fn) => { proxy = fn; proxyOffUntil = 0; };
+export const usingProxy = () => !!proxy && Date.now() >= proxyOffUntil;
+
 const n = (v) => {
   if (v === null || v === undefined || v === '') return null;
   const x = Number(v);
@@ -34,6 +42,17 @@ export function toFood(p) {
 const cache = new Map();
 const CACHE_MS = 10 * 60 * 1000;
 
+const remember = (key, foods) => {
+  if (cache.size > 60) cache.delete(cache.keys().next().value);
+  cache.set(key, { at: Date.now(), foods });
+  return foods;
+};
+const withTimeout = (promise, ms, signal) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error('timeout')), ms);
+  if (signal) signal.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('cancelado')); }, { once: true });
+  promise.then((v) => { clearTimeout(timer); resolve(v); }, (e) => { clearTimeout(timer); reject(e); });
+});
+
 export async function searchFoods(query, { signal } = {}) {
   const q = String(query || '').trim();
   if (q.length < 2) return [];
@@ -44,6 +63,16 @@ export async function searchFoods(query, { signal } = {}) {
     search_terms: q, search_simple: '1', action: 'process', json: '1', page_size: '20',
     sort_by: 'unique_scans_n', fields: 'code,product_name,product_name_es,brands,nutriments', lc: 'es',
   });
+  if (usingProxy()) {
+    try {
+      const foods = await withTimeout(proxy(q), 12000, signal);
+      if (!Array.isArray(foods)) throw new Error('respuesta de la función no válida');
+      return remember(ck, foods.map(toFood).filter(Boolean));
+    } catch (e) {
+      proxyOffUntil = Date.now() + 2 * 60 * 1000;
+      console.warn('off-search (función de Supabase) no disponible; pruebo la llamada directa', e);
+    }
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 12000);
   if (signal) signal.addEventListener('abort', () => ctrl.abort());
@@ -52,10 +81,7 @@ export async function searchFoods(query, { signal } = {}) {
     if (!res.ok) throw new Error(`Open Food Facts: HTTP ${res.status}`);
     let data;
     try { data = await res.json(); } catch { throw new Error('Open Food Facts: respuesta no válida (suele ser una página de "servicio saturado")'); }
-    const foods = (data.products || []).map(toFood).filter(Boolean);
-    if (cache.size > 60) cache.delete(cache.keys().next().value);
-    cache.set(ck, { at: Date.now(), foods });
-    return foods;
+    return remember(ck, (data.products || []).map(toFood).filter(Boolean));
   } finally {
     clearTimeout(timer);
   }

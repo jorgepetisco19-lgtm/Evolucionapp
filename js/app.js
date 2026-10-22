@@ -4,6 +4,7 @@ import { t, getLang, setLang, onLangChange } from './i18n.js';
 import { html, raw, setHtml, fail, spinner, closeAllModals } from './util.js';
 import { ICONS, LOGO } from './icons.js';
 import { maybeTour } from './onboarding.js';
+import { setSearchProxy } from './off.js';
 
 const TABS = [
   { name: 'home', icon: 'home' },
@@ -23,6 +24,13 @@ const VIEWS = {
 };
 
 const root = document.getElementById('app');
+
+// Búsqueda de alimentos: por la función de Supabase "off-search" (ver supabase/functions/off-search/index.ts y js/off.js).
+setSearchProxy(async (q) => {
+  const { data, error } = await sb.functions.invoke('off-search', { body: { q } });
+  if (error) throw error;
+  return data && data.products;
+});
 
 // ---------- tema ----------
 export function applyTheme() {

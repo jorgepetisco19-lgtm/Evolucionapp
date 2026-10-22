@@ -6,6 +6,9 @@
   <title>Evolucionapp</title>
   <meta name="description" content="Peso, fotos, comidas y entrenos en un solo sitio para ver tu evolución.">
   <meta name="theme-color" content="#f5f7fa">
+  <!-- Seguridad: la página solo puede cargar código de sí misma y hablar con Supabase y Open Food Facts. Si algún día se cambia de proyecto de Supabase, hay que actualizar aquí su dirección. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://nxcyupxvkygghlwpboge.supabase.co; connect-src 'self' https://nxcyupxvkygghlwpboge.supabase.co https://world.openfoodfacts.org; worker-src 'self' blob:; font-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta name="referrer" content="no-referrer">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg">
   <link rel="apple-touch-icon" href="icons/icon-192.png">

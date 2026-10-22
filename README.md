@@ -40,6 +40,7 @@ supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 supabase/04-guarniciones.sql   (v9) añade la etiqueta «guarnición» a esa lista
 supabase/05-primeros.sql   (v10) añade la etiqueta «primer plato» (incluye lo del 04)
 supabase/06-ingredientes.sql   (v11) crea la tabla de tu memoria de ingredientes
+supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca alimentos en Open Food Facts por ti (el navegador no puede)
 ```
 
 ## Puesta en marcha (una sola vez)
@@ -88,3 +89,20 @@ Con Python instalado: abre una terminal en esta carpeta y ejecuta `python -m htt
   confirmación siempre te deja corregir a mano antes de guardar. Los campos en naranja son los dudosos.
 - **Comidas:** Open Food Facts es colaborativo; algunos productos vienen sin datos. Siempre puedes añadir un ingrediente a mano.
 - **Una medición por día:** si guardas dos pesos o dos medidas el mismo día, el segundo reemplaza al primero.
+
+**Para que el buscador de Open Food Facts funcione (v11.2):** Open Food Facts bloquea las búsquedas hechas directamente desde el navegador, así que la app las pide a una función de Supabase.
+En Supabase → *Edge Functions* → *Deploy a new function* → *Via Editor* → nombre `off-search` → pega TODO `supabase/functions/off-search/index.ts` → *Deploy*. Deja activada la opción *Verify JWT*. Sin ella la app sigue funcionando (con la tabla interna, tu memoria y la llamada directa, que suele fallar).
+Si cambias la dirección de la web, hay que cambiar `SITE` en esa función. Si cambias de proyecto de Supabase, hay que cambiar su dirección en `index.html` (línea `Content-Security-Policy`) y en `js/config.js`.
+
+## Seguridad: qué guarda la app y qué hace falta cuidar
+
+- **Contraseñas:** la app no tiene contraseñas. El acceso es «Continuar con Google»: tu contraseña de Google nunca llega a la app ni a Supabase. Supabase guarda solo lo que Google comparte al iniciar sesión: nombre, correo, foto de perfil e identificador.
+- **Quién ve qué:** cada persona solo ve sus filas (reglas RLS en `schema.sql`, comprobadas con dos cuentas en las pruebas). Las fotos están en un almacenamiento privado y se ven con enlaces que caducan a la hora. La clave pública (`anon`) del código es pública por diseño; la clave `service_role` no está ni debe estar nunca en el código.
+- **Quién tiene acceso total:** quien administra el proyecto de Supabase puede ver todos los datos de todos. Por eso lo más importante es proteger las cuentas de *Supabase*, *GitHub* y *Google* del administrador con verificación en dos pasos (2FA) y contraseñas únicas.
+- **Código inyectado (XSS):** el texto que escribe la gente se escapa siempre antes de pintarse, y `index.html` lleva una política (CSP) que impide ejecutar código ajeno y hablar con servidores distintos de Supabase y Open Food Facts. Está probado.
+- **Lo que hay que revisar en los paneles (no se puede desde el código):**
+  1. Supabase → *Authentication* → *URL Configuration*: «Site URL» y «Redirect URLs» solo con `https://jorgepetisco19-lgtm.github.io/Evolucionapp/`.
+  2. Supabase → *Authentication* → *Providers*: solo Google activado (nada de email/contraseña ni otros).
+  3. Supabase → *Settings* → *API*: la clave `service_role` no se comparte ni se pega en ningún sitio.
+  4. Google Cloud → *Credenciales*: el cliente OAuth solo con la dirección de retorno de Supabase, y los permisos pedidos solo `openid`, `email` y `profile`.
+  5. GitHub: 2FA activado en la cuenta y el repositorio sin secretos.
