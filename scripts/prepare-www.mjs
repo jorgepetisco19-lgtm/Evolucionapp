@@ -27,6 +27,8 @@ if (after === before) throw new Error('No encuentro «viewport-fit=cover» en in
 const corePath = join(root, 'node_modules', '@capacitor', 'core', 'dist', 'capacitor.js');
 if (!existsSync(corePath)) throw new Error('Falta node_modules/@capacitor/core: ejecuta «npm ci» antes');
 cpSync(corePath, join(out, 'vendor', 'capacitor.js'));
+// Health Connect enseña esta página cuando pulsas «Política de privacidad» en su pantalla de permisos (la busca con este nombre).
+cpSync(join(out, 'privacidad.html'), join(out, 'privacypolicy.html'));
 const tag = '<script src="vendor/supabase.js"></script>';
 if (!after.includes(tag)) throw new Error('No encuentro la etiqueta de vendor/supabase.js en index.html');
 writeFileSync(indexPath, after.replace(tag, '<script src="vendor/capacitor.js"></script>\n  ' + tag));

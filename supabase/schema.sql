@@ -187,3 +187,9 @@ create policy "photos insert own" on storage.objects for insert to authenticated
   with check (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "photos delete own" on storage.objects for delete to authenticated
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Importación desde Health Connect (v13). Instalaciones anteriores: ejecutar supabase/08-entrenos-health-connect.sql
+alter table public.workouts
+  add column if not exists external_id text check (external_id is null or char_length(external_id) <= 200);
+create unique index if not exists workouts_external_id_uidx
+  on public.workouts (user_id, external_id) where external_id is not null;

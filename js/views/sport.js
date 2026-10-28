@@ -1,8 +1,9 @@
 // Deporte: registro de entrenos (gimnasio, pádel, caminar...) y rutinas guardadas con series, repeticiones y carga.
 import { listRange, listAll, insert, update, remove } from '../db.js';
+import { healthSupported, ensureAccess, recentWorkouts, heartStats, toRow, openHealthSettings } from '../health.js';
 import { exerciseEditor, summarize, cleanExercises, setsText } from '../exercises.js';
 import {
-  html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, toNum, fail, toast, navigate, refresh, confirmBox, weekdayIndex,
+  html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, toNum, fail, toast, navigate, refresh, confirmBox, weekdayIndex, parseDate,
 } from '../util.js';
 import { t, locale } from '../i18n.js';
 import { ICONS } from '../icons.js';
@@ -54,7 +55,8 @@ async function renderDay(el, params) {
     </div>
     ${todays.length ? html`<div class="card suggest"><span>${t('sport.todayIs')}</span>
       ${todays.map((r) => html`<button class="btn small primary" data-start="${r.id}">${r.name}</button>`)}</div>` : ''}
-    <div class="row-actions"><button class="btn primary" id="add-w">${raw(ICONS.plus)}<span>${t('sport.add')}</span></button></div>
+    <div class="row-actions"><button class="btn primary" id="add-w">${raw(ICONS.plus)}<span>${t('sport.add')}</span></button>
+      ${healthSupported() ? html`<button class="btn" id="hc-import">${t('hc.btn')}</button>` : ''}</div>
     ${workouts.length === 0 ? html`<div class="card empty"><p>${t('sport.empty')}</p></div>` : workouts.map((w) => html`
       <div class="card workout">
         <div class="wk-head">
@@ -70,6 +72,7 @@ async function renderDay(el, params) {
       </div>`)}`);
   on(el, 'click', '[data-d]', (e, b) => navigate('sport', { date: addDays(date, Number(b.dataset.d)) }));
   on(el, 'click', '#add-w', () => openWorkout({ date, routines }));
+  on(el, 'click', '#hc-import', () => openImport());
   on(el, 'click', '[data-start]', (e, b) => openWorkout({ date, routines, type: 'gym', routine: routines.find((r) => r.id === b.dataset.start) }));
   on(el, 'click', '[data-edit]', (e, b) => openWorkout({ date, routines, existing: workouts.find((w) => w.id === b.dataset.edit) }));
   on(el, 'click', '[data-del]', async (e, b) => {
@@ -233,6 +236,83 @@ function openWorkout({ date, routines, existing, type, routine }) {
       if (sqlMissing(err)) { console.warn(err); toast(t('sport.needSql'), 'error'); } else fail(err);
     }
   };
+}
+
+// ---------- importar de Health Connect (solo APK) ----------
+const dayShort = (d) => new Intl.DateTimeFormat(locale(), { weekday: 'short', day: 'numeric', month: 'short' }).format(parseDate(d));
+const hcSqlMissing = (e) => !!e && (['PGRST204', '42703'].includes(e.code) || /external_id/.test(e.message || ''));
+function openImport() {
+  const m = openModal(html`<div id="hc-box"></div>`, { title: t('hc.title'), wide: true });
+  const box = m.body.querySelector('#hc-box');
+  const S = { phase: 'loading', msg: '', list: [], picked: new Set(), imported: new Set(), sameDay: new Set(), hr: true };
+  const line = (c) => [c.duration_min ? `${c.duration_min} min` : '', statsText(c)].filter(Boolean).join(' · ');
+  const draw = () => {
+    if (S.phase === 'loading') return setHtml(box, spinner(S.msg || t('hc.loading')));
+    if (S.phase === 'msg') {
+      return setHtml(box, html`<p class="note warn">${S.msg}</p>
+        ${S.settings ? html`<button class="btn" id="hc-settings">${t('hc.openSettings')}</button>` : ''}`);
+    }
+    if (!S.list.length) return setHtml(box, html`<p class="note">${t('hc.empty')}</p>`);
+    const n = S.picked.size;
+    setHtml(box, html`
+      <p class="tiny muted">${t('hc.hint')}</p>
+      ${S.hr ? '' : html`<p class="note warn">${t('hc.noHr')}</p>`}
+      <div class="hc-list">${S.list.map((c) => html`
+        <label class="hc-item ${S.imported.has(c.id) ? 'done' : ''}">
+          <input type="checkbox" data-id="${c.id}" ${S.picked.has(c.id) ? 'checked' : ''} ${S.imported.has(c.id) ? 'disabled' : ''}>
+          <span class="grow">
+            <strong>${t('sport.type.' + c.type)}</strong> <span class="muted small">${dayShort(c.date)} · ${c.time}</span><br>
+            <span class="small">${line(c) || '—'}</span>
+            ${S.imported.has(c.id) ? html`<br><span class="tiny muted">${t('hc.already')}</span>` : S.sameDay.has(c.date) ? html`<br><span class="tiny warn-text">${t('hc.sameDay')}</span>` : ''}
+          </span>
+        </label>`)}</div>
+      <div class="form-actions"><button class="btn primary" id="hc-go" ${n ? '' : 'disabled'}>${t('hc.import', { n })}</button></div>`);
+  };
+  const stop = (msg, settings = false) => { S.phase = 'msg'; S.msg = msg; S.settings = settings; draw(); };
+  on(box, 'change', '[data-id]', (e, c) => { if (c.checked) S.picked.add(c.dataset.id); else S.picked.delete(c.dataset.id); draw(); });
+  on(box, 'click', '#hc-settings', () => { openHealthSettings().catch((e) => console.warn(e)); });
+  on(box, 'click', '#hc-go', async () => {
+    const chosen = S.list.filter((c) => S.picked.has(c.id));
+    let ok = 0;
+    S.phase = 'loading';
+    try {
+      for (const [i, c] of chosen.entries()) {
+        S.msg = t('hc.importing', { i: i + 1, n: chosen.length });
+        draw();
+        const hr = S.hr ? await heartStats(c) : {};
+        try { await insert('workouts', toRow(c, hr)); ok++; } catch (err) { if (err && err.code === '23505') continue; throw err; } // 23505: ya estaba importado
+      }
+      m.close(); toast(t('hc.imported', { n: ok })); refresh();
+    } catch (err) {
+      if (hcSqlMissing(err)) { console.warn(err); stop(t('hc.needSql')); } else { console.error(err); stop(t('hc.fail') + ((err && err.message) ? ` (${err.message})` : '')); }
+    }
+  });
+  (async () => {
+    try {
+      const acc = await ensureAccess();
+      if (!acc.ok) return stop(acc.reason === 'denied' ? t('hc.denied') : t('hc.unavailable'), acc.reason === 'denied');
+      S.hr = acc.hr;
+      const list = await recentWorkouts(30);
+      let known = [];
+      if (list.length) {
+        try { known = await listRange('workouts', addDays(todayStr(), -40), addDays(todayStr(), 1), 'id,date,external_id'); } catch (err) {
+          if (hcSqlMissing(err)) return stop(t('hc.needSql'));
+          throw err;
+        }
+      }
+      S.imported = new Set(known.map((w) => w.external_id).filter(Boolean));
+      S.sameDay = new Set(known.filter((w) => !w.external_id).map((w) => w.date));
+      S.list = list;
+      // Marcados de entrada: los nuevos de días en los que aún no hay ningún entreno.
+      S.picked = new Set(list.filter((c) => !S.imported.has(c.id) && !S.sameDay.has(c.date)).map((c) => c.id));
+      S.phase = 'list';
+      draw();
+    } catch (err) {
+      console.error(err);
+      stop(t('hc.fail') + ((err && err.message) ? ` (${err.message})` : ''));
+    }
+  })();
+  draw();
 }
 
 // ---------- rutinas ----------

@@ -1,7 +1,9 @@
 # Evolucionapp en APK (Android) — guía
 
-Última revisión: 28 de octubre de 2026. Elegida la **opción B: Capacitor** (la misma web dentro de una APK con acceso al móvil).
-**Estado (28 oct 2026):** la construcción en GitHub **funciona** (la primera APK se compiló sin errores). Al instalarla, se quedó en una rueda de carga: faltaba cargar una pieza de Capacitor (`@capacitor/core`) que el puente de Android no trae; corregido en la **v12.2** (el arranque ahora también muestra el motivo en pantalla si algo falla, en vez de dejar la rueda para siempre). Pendiente de que lo pruebes en el móvil.
+Última revisión: 28 de octubre de 2026 (v13). Elegida la **opción B: Capacitor** (la misma web dentro de una APK con acceso al móvil).
+**Estado (28 oct 2026):** la fase 1 funciona en tu móvil (APK instalada, login con Google OK). La fase 2 (importar del reloj) está hecha en la **v13**, pendiente de probar.
+
+Historial de la fase 1: la construcción en GitHub **funciona** (la primera APK se compiló sin errores). Al instalarla, se quedó en una rueda de carga: faltaba cargar una pieza de Capacitor (`@capacitor/core`) que el puente de Android no trae; corregido en la **v12.2** (el arranque ahora también muestra el motivo en pantalla si algo falla, en vez de dejar la rueda para siempre). Pendiente de que lo pruebes en el móvil.
 
 ---
 
@@ -57,6 +59,7 @@ Cada vez que cambie la web: *Commit + Push* y repetir el **Paso 3**. Las APK nue
 | `scripts/prepare-www.mjs` | Copia solo la web (index, js, css, icons, vendor…) a `www/`, lo que va dentro de la APK. Deja fuera pruebas, SQL y guías. |
 | `android/` | El proyecto Android: icono y pantalla de arranque con tu logo, permiso de Internet, enlace de vuelta del login, firma fija. |
 | `.github/workflows/android.yml` (se crea en el paso 1b; copia en `scripts/receta-github-android.yml`) | La receta que instala Java/Node, copia la web, construye la APK y te la deja descargar. |
+| `js/health.js` | Lee Health Connect (solo APK): permisos, lista de entrenos, pulsaciones y conversión a un entreno de la app. |
 | `vendor/capacitor.js` (solo dentro de la APK; lo añade `prepare-www.mjs`) | La pieza `@capacitor/core` que permite usar el navegador del sistema y el enlace de vuelta del login. |
 | `js/db.js`, `js/app.js` | Login con Google en el navegador del sistema cuando la app va dentro de la APK (en la web normal no cambia nada) y sin service worker en la APK. |
 
@@ -70,14 +73,27 @@ Cada vez que cambie la web: *Commit + Push* y repetir el **Paso 3**. Las APK nue
 
 ---
 
-## Fase 2 · Leer el reloj con Health Connect (después de que la fase 1 funcione)
+## Fase 2 · Importar entrenos del reloj con Health Connect (v13, ya hecha; pendiente de probar en tu móvil)
 
-**Health Connect** es el «buzón» de salud de Android: apps como Samsung Health, Garmin Connect o Fitbit/Pixel Watch dejan ahí sus datos (según mi conocimiento; hay que confirmarlo con tu reloj) y Evolucionapp los lee **en el propio móvil, sin cuentas, sin servidor y sin revisiones de Google**.
+**Health Connect** es el «buzón de salud» de Android: la app de tu reloj deja ahí sus entrenos y Evolucionapp los **lee en el propio móvil**, sin cuentas ni servidores intermedios.
 
-- Plugin candidato: [`@capgo/capacitor-health`](https://cdn.jsdelivr.net/npm/@capgo/capacitor-health@8.7.0/README.md). Según su documentación lee entrenos (duración en segundos, kcal, distancia en metros) y pulsaciones aparte, y necesita Android 8+. **Por comprobar:** su licencia (la documentación no la indica) y que los entrenos funcionen bien en Android. Alternativa de pago: Capawesome Insiders.
-- Se añadiría un botón «Importar desde Health Connect» en Deporte (solo en la APK) que rellena los mismos campos que ya tiene el formulario (duración, kcal, pulsaciones media/máx., distancia) y guarda el entreno con origen `health_connect` (el SQL 07 ya lo permite).
-- **Tú:** al primer uso, Android pregunta si dejas a Evolucionapp leer esos datos; y en la app de tu reloj hay que activar el envío a Health Connect.
-- **Probarlo solo se puede en un Android real con tu reloj vinculado.**
+**Cómo se usa:** en *Deporte → Diario* (solo en la APK) aparece **Importar del reloj**. La primera vez Android pide permiso para *leer* entrenos, pulsaciones, calorías activas y distancia. Sale una lista de los entrenos de los últimos 30 días; marcas los que quieras y **Importar**. Cada uno se guarda como un entreno más (tipo, fecha, duración, kcal, distancia, pulsaciones media y máxima calculadas con las muestras del reloj) con origen «health_connect». No se duplican si importas dos veces.
+
+**Para que salga algo, tú:**
+1. Ejecuta en Supabase el archivo `supabase/08-entrenos-health-connect.sql` (como hiciste con el 07). Sin él, la importación te lo dirá.
+2. En la app de tu reloj (Mi Fitness / Zepp / Samsung Health / Garmin Connect…), activa el envío de datos a **Health Connect**. Si el reloj no lo ofrece, no habrá nada que importar (en ese caso sigue valiendo la captura del resumen).
+3. En Android 13 o anterior hay que instalar «Health Connect» desde Google Play; en Android 14 o superior ya viene incluida.
+
+**Qué se ha decidido**
+- **Solo lectura:** el plugin trae declarados ~40 permisos (muchos de escritura); en `AndroidManifest.xml` se **quitan todos** salvo 4 de lectura (entrenos, pulsaciones, calorías activas, distancia).
+- **Calorías = activas** (lo que Health Connect marca como «calorías activas» del entreno), que suele coincidir con las del resumen del reloj, pero puede diferir de las «totales».
+- **Tipos:** correr, caminar/senderismo, bici, natación y gimnasio/fuerza se asignan solos; tenis, squash, bádminton y similares se proponen como **Pádel** (Health Connect no tiene pádel); lo demás, «Otro». Se puede editar el entreno después.
+- **Solo 30 días hacia atrás** (límite de Health Connect sin un permiso extra, que no pedimos).
+- **Android 8 o superior** (se subió el mínimo de 7 a 8 porque Health Connect lo exige).
+- **Plugin:** [`@capgo/capacitor-health`](https://github.com/Cap-go/capacitor-health) 8.11.13, licencia MPL-2.0 (uso libre; solo obliga a compartir cambios en los archivos del propio plugin, que no tocamos).
+- La **política de privacidad** se actualizó y se copia como `privacypolicy.html` dentro de la APK: es la página que Health Connect enseña al pulsar «Política de privacidad» en su pantalla de permisos.
+
+**Riesgos:** la compilación en GitHub puede fallar la primera vez por el plugin nuevo (Kotlin/Gradle; no he podido compilarlo aquí): si pasa, copia el error y se arregla. Y todo lo de Health Connect está probado con el puente real de Android simulado, **no con un móvil y un reloj reales**.
 
 ## Publicar en Google Play (solo si algún día lo quieres)
 - 25 $ una sola vez. Si la cuenta de desarrollador es personal y se creó después del 13 de noviembre de 2023, Google exige una **prueba cerrada con al menos 12 testers inscritos 14 días seguidos** antes de publicar ([ayuda de Google Play](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en-GB)).

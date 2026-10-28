@@ -364,3 +364,10 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .cap-box { margin: 0 0 12px; }
 .cap-box .btn { margin-bottom: 8px; }
 .cap-text { white-space: pre-wrap; word-break: break-word; font-size: .75rem; background: var(--surface-2); padding: 8px; border-radius: 8px; max-height: 160px; overflow: auto; user-select: all; }
+
+/* Importar de Health Connect (APK) */
+.hc-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 12px; }
+.hc-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.hc-item input { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+.hc-item.done { opacity: .55; }
+.warn-text { color: var(--orange); }
