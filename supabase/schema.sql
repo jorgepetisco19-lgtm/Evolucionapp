@@ -75,6 +75,22 @@ create table if not exists public.workouts (
   created_at timestamptz not null default now()
 );
 create index if not exists workouts_user_date_idx on public.workouts (user_id, date);
+-- Datos del reloj (v12). Instalaciones anteriores: ejecutar supabase/07-entrenos-reloj.sql
+alter table public.workouts
+  add column if not exists calories_kcal integer check (calories_kcal between 0 and 20000),
+  add column if not exists hr_avg smallint check (hr_avg between 30 and 250),
+  add column if not exists hr_max smallint check (hr_max between 30 and 250),
+  add column if not exists distance_km numeric(6,2) check (distance_km between 0 and 1000),
+  add column if not exists source text not null default 'manual';
+alter table public.workouts drop constraint if exists workouts_source_check;
+alter table public.workouts
+  add constraint workouts_source_check check (source in ('manual', 'capture', 'health_connect'));
+alter table public.workouts drop constraint if exists workouts_hr_order_check;
+alter table public.workouts
+  add constraint workouts_hr_order_check check (hr_avg is null or hr_max is null or hr_avg <= hr_max);
+alter table public.workouts drop constraint if exists workouts_type_check;
+alter table public.workouts
+  add constraint workouts_type_check check (type in ('gym', 'padel', 'walk', 'run', 'cycling', 'swim', 'other'));
 
 -- ---------- Recetas guardadas (por ejemplo "Pollo con arroz") ----------
 create table if not exists public.recipes (

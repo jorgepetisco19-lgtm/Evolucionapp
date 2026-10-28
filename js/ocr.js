@@ -89,7 +89,7 @@ export function fixValue(field, raw) {
 }
 
 // ---------- imagen ----------
-async function loadCanvas(file, maxW = 1600) {
+export async function loadCanvas(file, maxW = 1600) {
   const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const scale = bmp.width > maxW ? maxW / bmp.width : 1;
   const c = document.createElement('canvas');
@@ -197,7 +197,7 @@ function ensureTesseract() {
   });
 }
 
-async function makeWorker(onStatus) {
+export async function makeWorker(onStatus) {
   await ensureTesseract();
   return window.Tesseract.createWorker('spa', 1, {
     workerPath: abs('vendor/tesseract/worker.min.js'),

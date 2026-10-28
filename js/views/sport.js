@@ -7,7 +7,19 @@ import {
 import { t, locale } from '../i18n.js';
 import { ICONS } from '../icons.js';
 
-const TYPES = ['gym', 'padel', 'walk', 'other'];
+const TYPES = ['gym', 'run', 'walk', 'cycling', 'swim', 'padel', 'other'];
+const nf = (n, d = 2) => new Intl.NumberFormat(locale(), { maximumFractionDigits: d }).format(n);
+// Datos del reloj de un entreno en una línea: "5,23 km · 320 kcal · 142 ppm de media · 168 máx."
+function statsText(w) {
+  const p = [];
+  if (w.distance_km != null) p.push(`${nf(w.distance_km)} km`);
+  if (w.calories_kcal != null) p.push(`${nf(w.calories_kcal, 0)} kcal`);
+  if (w.hr_avg != null) p.push(t('sport.hrAvgText', { n: w.hr_avg }));
+  if (w.hr_max != null) p.push(t('sport.hrMaxText', { n: w.hr_max }));
+  return p.join(' · ');
+}
+// Si falta ejecutar el SQL 07 en Supabase, el error técnico no le dice nada a nadie: se avisa con una frase clara.
+const sqlMissing = (e) => !!e && (['PGRST204', '42703'].includes(e.code) || (e.code === '23514' && /workouts_type_check/.test(e.message || '')) || /workouts_type_check|calories_kcal|hr_avg|distance_km/.test(e.message || ''));
 const weekdayName = (i, style = 'short') => new Intl.DateTimeFormat(locale(), { weekday: style }).format(new Date(2024, 0, 1 + i));
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
@@ -52,6 +64,7 @@ async function renderDay(el, params) {
           <button class="icon-btn" data-edit="${w.id}" aria-label="${t('common.edit')}">${raw(ICONS.edit)}</button>
           <button class="icon-btn" data-del="${w.id}" aria-label="${t('common.delete')}">${raw(ICONS.trash)}</button>
         </div>
+        ${statsText(w) ? html`<p class="wk-stats small">${statsText(w)}${w.source === 'capture' ? html` <span class="muted tiny">· ${t('sport.fromCaptureTag')}</span>` : ''}</p>` : ''}
         ${w.exercises && w.exercises.length ? html`<ul class="ex-list">${w.exercises.map((e) => html`<li><b>${e.name}</b> <span class="muted">${setsText(e, ' · ')}</span></li>`)}</ul>` : ''}
         ${w.notes ? html`<p class="muted small">${w.notes}</p>` : ''}
       </div>`)}`);
@@ -79,10 +92,19 @@ function openWorkout({ date, routines, existing, type, routine }) {
     duration: existing && existing.duration_min != null ? existing.duration_min : '',
     notes: existing && existing.notes ? existing.notes : '',
     saveRoutine: false,
+    calories: existing && existing.calories_kcal != null ? existing.calories_kcal : '',
+    distance: existing && existing.distance_km != null ? existing.distance_km : '',
+    hr_avg: existing && existing.hr_avg != null ? existing.hr_avg : '',
+    hr_max: existing && existing.hr_max != null ? existing.hr_max : '',
+    fromCapture: false,                 // se rellenó con una captura (se guarda como origen del dato)
+    cap: null,                          // { busy, text, found, lowConf, preview } mientras dura / tras leer una captura
+    watchOpen: false,                   // el bloque "Datos del reloj" lo abrió la persona a mano
   };
+  const hasWatch = () => ['calories', 'distance', 'hr_avg', 'hr_max'].some((k) => state[k] !== '' && state[k] !== null);
   const m = openModal(html`<form id="w-form" autocomplete="off"></form>`, { title: existing ? t('sport.edit') : t('sport.add'), wide: true });
   const form = m.body.querySelector('#w-form');
   const draw = () => {
+    const lowSet = new Set(state.cap && !state.cap.busy ? state.cap.lowConf : []);
     setHtml(form, html`
       <label class="field"><span>${t('common.date')}</span><input type="date" name="date" value="${state.date}" required></label>
       <div class="chips" id="types">${TYPES.map((k) => html`<button type="button" class="chip ${state.type === k ? 'on' : ''}" data-type="${k}">${t('sport.type.' + k)}</button>`)}</div>
@@ -98,8 +120,28 @@ function openWorkout({ date, routines, existing, type, routine }) {
         </div>` : html`
         <label class="field"><span>${t('sport.nameOpt')}</span><input type="text" name="name" value="${state.name}" maxlength="80"></label>`}
       <div class="grid2">
-        <label class="field"><span>${t('sport.duration')}</span><input type="number" name="duration" min="0" inputmode="numeric" value="${state.duration}" placeholder="—"></label>
+        <label class="field ${lowSet.has('duration_min') ? 'low' : ''}"><span>${t('sport.duration')}</span><input type="number" name="duration" min="0" inputmode="numeric" value="${state.duration}" placeholder="—"></label>
       </div>
+      <details class="wk-extra" ${state.watchOpen || hasWatch() || state.cap ? 'open' : ''}>
+        <summary>${t('sport.watchData')}</summary>
+        <div class="cap-box">
+          ${state.cap && state.cap.busy ? spinner(state.cap.msg || t('ocr.reading')) : html`
+            <button type="button" class="btn small" id="cap-btn">${raw(ICONS.camera)}<span>${t('sport.fromCapture')}</span></button>
+            <input type="file" id="cap-file" accept="image/*" hidden>
+            ${state.cap ? '' : html`<p class="tiny muted">${t('sport.captureHint')}</p>`}`}
+          ${state.cap && !state.cap.busy ? html`
+            ${state.cap.preview ? html`<img class="ocr-preview" src="${state.cap.preview}" alt="">` : ''}
+            <p class="note ${state.cap.found ? '' : 'warn'}">${state.cap.found ? t('sport.captureFound', { n: state.cap.found }) : t('sport.captureNone')}</p>
+            ${state.cap.lowConf.length ? html`<p class="tiny muted">${t('ocr.lowHint')}</p>` : ''}
+            ${state.cap.text ? html`<details class="tiny"><summary>${t('sport.captureText')}</summary><pre class="cap-text">${state.cap.text}</pre></details>` : ''}` : ''}
+        </div>
+        <div class="grid2">
+          <label class="field ${lowSet.has('calories_kcal') ? 'low' : ''}"><span>${t('sport.calories')}</span><input type="number" name="calories" min="0" max="20000" inputmode="numeric" value="${state.calories}" placeholder="—"></label>
+          <label class="field ${lowSet.has('distance_km') ? 'low' : ''}"><span>${t('sport.distance')}</span><input type="number" name="distance" min="0" max="1000" step="any" inputmode="decimal" value="${state.distance}" placeholder="—"></label>
+          <label class="field ${lowSet.has('hr_avg') ? 'low' : ''}"><span>${t('sport.hrAvg')}</span><input type="number" name="hr_avg" min="30" max="250" inputmode="numeric" value="${state.hr_avg}" placeholder="—"></label>
+          <label class="field ${lowSet.has('hr_max') ? 'low' : ''}"><span>${t('sport.hrMax')}</span><input type="number" name="hr_max" min="30" max="250" inputmode="numeric" value="${state.hr_max}" placeholder="—"></label>
+        </div>
+      </details>
       <label class="field"><span>${t('sport.notes')}</span><textarea name="notes" rows="2" maxlength="500">${state.notes}</textarea></label>
       <div class="form-actions"><button class="btn primary" type="submit">${t('common.save')}</button></div>`);
     if (state.type === 'gym') exerciseEditor(form.querySelector('#ex-editor'), state.exercises);
@@ -112,6 +154,41 @@ function openWorkout({ date, routines, existing, type, routine }) {
     const r = routines.find((x) => x.id === sel.value);
     if (r) { state.exercises = clone(r.exercises); state.routineName = r.name; draw(); }
   });
+  // "toggle" no se propaga hacia arriba: se escucha en la fase de captura para recordar si la persona abrió el bloque.
+  form.addEventListener('toggle', (e) => { if (e.target.classList && e.target.classList.contains('wk-extra')) state.watchOpen = e.target.open; }, true);
+  on(form, 'click', '#cap-btn', () => form.querySelector('#cap-file').click());
+  on(form, 'change', '#cap-file', (e, input) => { if (input.files[0]) readCapture(input.files[0]); input.value = ''; });
+  // Lee la captura del resumen del reloj y rellena el formulario (la persona lo revisa antes de guardar).
+  async function readCapture(file) {
+    if (state.cap && state.cap.preview) URL.revokeObjectURL(state.cap.preview);
+    state.cap = { busy: true, msg: t('ocr.reading') };
+    draw();
+    const setMsg = (msg) => { state.cap.msg = msg; const l = form.querySelector('.cap-box .loading'); if (l && l.lastChild) l.lastChild.textContent = msg; };
+    try {
+      const { runWorkoutOcr } = await import('../workout-ocr.js');
+      const res = await runWorkoutOcr(file, (st) => {
+        if (st.stage === 'load') setMsg(t('ocr.stage.load'));
+        else if (st.stage === 'engine') setMsg(t('ocr.stage.engine') + (st.progress ? ` ${Math.round(st.progress * 100)} %` : ''));
+        else if (st.stage === 'read') setMsg(t('ocr.reading'));
+      });
+      const v = res.values;
+      if (v.duration_min != null) state.duration = v.duration_min;
+      if (v.calories_kcal != null) state.calories = v.calories_kcal;
+      if (v.distance_km != null) state.distance = v.distance_km;
+      if (v.hr_avg != null) state.hr_avg = v.hr_avg;
+      if (v.hr_max != null) state.hr_max = v.hr_max;
+      // El tipo solo se cambia si el entreno es nuevo y la persona no había empezado una rutina de gimnasio.
+      if (res.type && !existing && !(state.type === 'gym' && state.exercises.length)) state.type = res.type;
+      if (res.found) state.fromCapture = true;
+      state.cap = { busy: false, found: res.found, lowConf: res.lowConf, text: res.text, preview: URL.createObjectURL(file) };
+    } catch (err) {
+      console.warn(err);
+      toast(t('ocr.failed'), 'error');
+      state.cap = { busy: false, found: 0, lowConf: [], text: '', preview: '' };
+    }
+    draw();
+  }
+  m.onClose = () => { if (state.cap && state.cap.preview) URL.revokeObjectURL(state.cap.preview); };
   draw();
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -123,6 +200,20 @@ function openWorkout({ date, routines, existing, type, routine }) {
       notes: String(state.notes).trim() || null,
       exercises: state.type === 'gym' ? cleanExercises(state.exercises) : [],
     };
+    // Datos del reloj: solo se envían si tienen valor (o si había uno y se ha vaciado), así nada se rompe si aún no se ha ejecutado el SQL 07.
+    const extra = {
+      calories_kcal: toNum(state.calories), distance_km: toNum(state.distance), hr_avg: toNum(state.hr_avg), hr_max: toNum(state.hr_max),
+    };
+    const LIMITS = { calories_kcal: [0, 20000, 'sport.calories'], distance_km: [0, 1000, 'sport.distance'], hr_avg: [30, 250, 'sport.hrAvg'], hr_max: [30, 250, 'sport.hrMax'] };
+    for (const [k, [lo, hi, label]] of Object.entries(LIMITS)) {
+      if (extra[k] !== null && (extra[k] < lo || extra[k] > hi)) { toast(t('body.badValue', { f: t(label) }), 'error'); return; }
+    }
+    if (extra.hr_avg !== null && extra.hr_max !== null && extra.hr_avg > extra.hr_max) { toast(t('sport.badHr'), 'error'); return; }
+    if (extra.calories_kcal !== null) extra.calories_kcal = Math.round(extra.calories_kcal);
+    if (extra.hr_avg !== null) extra.hr_avg = Math.round(extra.hr_avg);
+    if (extra.hr_max !== null) extra.hr_max = Math.round(extra.hr_max);
+    for (const [k, v] of Object.entries(extra)) if (v !== null || (existing && existing[k] != null)) row[k] = v;
+    if (state.fromCapture) row.source = 'capture';
     const asRoutine = state.type === 'gym' && state.saveRoutine;
     if (asRoutine && !row.name) { toast(t('sport.routineNameReq'), 'error'); return; }
     if (asRoutine && !row.exercises.length) { toast(t('sport.routineNeedsEx'), 'error'); return; }
@@ -137,7 +228,10 @@ function openWorkout({ date, routines, existing, type, routine }) {
         if (same) await update('routines', same.id, data); else await insert('routines', { ...data, weekday: null });
       }
       m.close(); toast(asRoutine ? t('sport.savedWithRoutine') : t('common.saved')); refresh();
-    } catch (err) { btn.disabled = false; fail(err); }
+    } catch (err) {
+      btn.disabled = false;
+      if (sqlMissing(err)) { console.warn(err); toast(t('sport.needSql'), 'error'); } else fail(err);
+    }
   };
 }
 

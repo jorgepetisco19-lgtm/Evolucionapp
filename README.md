@@ -20,7 +20,8 @@ están en un almacén privado con una carpeta por usuario. La clave "anon" que h
 index.html          pantalla única; todo se pinta con JavaScript
 js/app.js           arranque, sesión, navegación por pestañas
 js/views/           una pantalla por archivo (inicio, cuerpo, fotos, comparador, comidas, deporte, ajustes)
-js/ocr.js           lectura de la captura (2 pasadas: etiquetas y números)
+js/ocr.js           lectura de la captura de la báscula (2 pasadas: etiquetas y números)
+js/workout-ocr.js   (v12) lectura de la captura del resumen de un entreno (duración, kcal, pulsaciones, distancia)
 js/db.js            todo el acceso a Supabase
 js/net.js           corta las peticiones que no responden (12 s) y reintenta las lecturas una vez
 js/i18n.js          textos en español e inglés
@@ -40,6 +41,8 @@ supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 supabase/04-guarniciones.sql   (v9) añade la etiqueta «guarnición» a esa lista
 supabase/05-primeros.sql   (v10) añade la etiqueta «primer plato» (incluye lo del 04)
 supabase/06-ingredientes.sql   (v11) crea la tabla de tu memoria de ingredientes
+APK.md              guía para pasar la app a APK de Android (qué hacer, costes y riesgos)
+supabase/07-entrenos-reloj.sql   (v12) añade calorías, pulsaciones, distancia y los tipos Correr / Bici / Natación a los entrenos
 supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca alimentos en Open Food Facts por ti (el navegador no puede)
 ```
 
@@ -58,6 +61,8 @@ supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca 
 **Para las etiquetas «guarnición» (v9) y «primer plato» (v10):** ejecuta también `supabase/05-primeros.sql` (después del 03; ya incluye lo del 04). Sin él, al etiquetar una receta como guarnición o primer plato la base de datos la rechaza.
 
 **Para la memoria de ingredientes (v11):** ejecuta `supabase/06-ingredientes.sql`. Es seguro repetirlo y no toca nada existente. Sin él la app funciona igual, pero no recuerda los ingredientes (hay que esperar a Open Food Facts cada vez).
+
+**Para los datos del reloj en los entrenos (v12):** ejecuta `supabase/07-entrenos-reloj.sql` (SQL Editor → pegar → Run). Es seguro repetirlo y no borra ni cambia tus entrenos. Sin él, los entrenos de siempre funcionan igual, pero al guardar calorías, pulsaciones, distancia o los tipos Correr / Bici / Natación la app avisa de que falta ejecutarlo.
 
 Si Google devuelve `redirect_uri_mismatch`, espera unos minutos (Google tarda en aplicar los cambios) y revisa que la URI de redirección sea exactamente
 `https://nxcyupxvkygghlwpboge.supabase.co/auth/v1/callback`.
@@ -87,6 +92,7 @@ Con Python instalado: abre una terminal en esta carpeta y ejecuta `python -m htt
 - **Fotos:** se reducen a ~1280 px (≈ 300 KB) antes de subirse, más una miniatura. En 1 GB caben unas 3.000.
 - **OCR:** está afinado con la app de báscula de tus capturas (rejilla de 3 columnas con 13 datos). Con otras apps puede leer menos campos; la pantalla de
   confirmación siempre te deja corregir a mano antes de guardar. Los campos en naranja son los dudosos.
+- **Captura del entreno (v12):** en *Deporte → Registrar entreno → Datos del reloj* puedes subir una captura del resumen de tu reloj (Samsung Health, Garmin, Apple, Strava...). Cada app dibuja su pantalla distinta, así que lee lo que reconoce (duración, calorías, pulsaciones media/máx., distancia) y los campos en naranja son los dudosos; revísalos siempre. Si no lee nada, abre «Ver lo que he leído en la imagen»: ese texto sirve para ajustar el lector.
 - **Comidas:** Open Food Facts es colaborativo; algunos productos vienen sin datos. Siempre puedes añadir un ingrediente a mano.
 - **Una medición por día:** si guardas dos pesos o dos medidas el mismo día, el segundo reemplaza al primero.
 
