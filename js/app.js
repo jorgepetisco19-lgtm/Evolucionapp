@@ -1,5 +1,5 @@
 // Arranque de la app: sesión, tema, idioma, navegación por pestañas y pantalla de acceso.
-import { sb, session, signInWithGoogle } from './db.js';
+import { sb, session, signInWithGoogle, listenNativeLogin, isNative } from './db.js';
 import { t, getLang, setLang, onLangChange } from './i18n.js';
 import { html, raw, setHtml, fail, spinner, closeAllModals } from './util.js';
 import { ICONS, LOGO } from './icons.js';
@@ -64,7 +64,11 @@ function showLogin(message) {
     </main>`);
   root.querySelector('#btn-google').onclick = async (e) => {
     e.currentTarget.disabled = true;
-    try { await signInWithGoogle(); } catch (err) { e.currentTarget.disabled = false; fail(err); }
+    const btn = e.currentTarget;
+    try {
+      // En la APK el login ocurre en el navegador del sistema: si la persona lo cierra sin terminar, el botón debe poder pulsarse otra vez.
+      if (await signInWithGoogle()) setTimeout(() => { btn.disabled = false; }, 2000);
+    } catch (err) { btn.disabled = false; fail(err); }
   };
   root.querySelectorAll('[data-lang]').forEach((b) => { b.onclick = () => { setLang(b.dataset.lang); showLogin(message); }; });
 }
@@ -156,6 +160,7 @@ async function boot() {
   const params = new URL(location.href).searchParams;
   const oauthError = params.get('error_description') || params.get('error');
   setHtml(root, spinner());
+  listenNativeLogin((msg) => fail(new Error(msg))); // solo hace algo dentro de la APK
   try {
     const { data } = await sb.auth.getSession();
     setUser(data.session ? data.session.user : null, oauthError);
@@ -168,7 +173,8 @@ async function boot() {
 
 // ---------- PWA ----------
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); window.__installPrompt = e; });
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+// En la APK los archivos ya van dentro de la app: no hace falta (ni conviene) el service worker.
+if ('serviceWorker' in navigator && location.protocol !== 'file:' && !isNative()) {
   const hadController = !!navigator.serviceWorker.controller;
   // Cuando se instala una versión nueva, se recarga sola para no tener que abrir la app dos veces
   // (salvo que haya una ventana abierta o estés escribiendo, para no perder lo que llevas).

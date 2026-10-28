@@ -1,0 +1,7 @@
+{
+  "appId": "com.evolucionapp.app",
+  "appName": "Evolucionapp",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}

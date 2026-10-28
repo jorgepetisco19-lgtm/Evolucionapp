@@ -16,9 +16,47 @@ export const session = { user: null };
 export function redirectUrl() {
   return location.origin + location.pathname.replace(/index\.html$/, '');
 }
+
+// ---------- versión APK (Capacitor) ----------
+// Dentro de la APK, Google NO deja iniciar sesión en una web embebida: se abre el navegador del sistema y, al terminar,
+// Android devuelve a la app con un enlace especial (com.evolucionapp.app://auth?code=...). En la web normal nada de esto se usa.
+export const NATIVE_REDIRECT = 'com.evolucionapp.app://auth';
+export const isNative = () => !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+const nativePlugin = (name) => window.Capacitor.registerPlugin(name);
+
+/** Devuelve true si el login sigue en el navegador del sistema (versión APK) y false si la propia página se redirige (web). */
 export async function signInWithGoogle() {
-  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectUrl() } });
+  if (!isNative()) {
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: redirectUrl() } });
+    if (error) throw error;
+    return false;
+  }
+  const { data, error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: NATIVE_REDIRECT, skipBrowserRedirect: true } });
   if (error) throw error;
+  await nativePlugin('Browser').open({ url: data.url });
+  return true;
+}
+
+let nativeListening = false;
+/** Escucha el enlace de vuelta del login (solo en la APK). onError recibe un texto si Google o Supabase devuelven un fallo. */
+export function listenNativeLogin(onError) {
+  if (!isNative() || nativeListening) return;
+  nativeListening = true;
+  nativePlugin('App').addListener('appUrlOpen', async (ev) => {
+    const url = (ev && ev.url) || '';
+    if (!url.startsWith(NATIVE_REDIRECT)) return;
+    try { await nativePlugin('Browser').close(); } catch { /* en Android se cierra solo */ }
+    const q = new URLSearchParams(url.includes('?') ? url.slice(url.indexOf('?') + 1).split('#')[0] : '');
+    const h = new URLSearchParams(url.includes('#') ? url.slice(url.indexOf('#') + 1) : '');
+    const err = q.get('error_description') || q.get('error') || h.get('error_description') || h.get('error');
+    if (err) { onError(err); return; }
+    const code = q.get('code');
+    if (!code) { onError('El inicio de sesión no devolvió ningún código. Inténtalo de nuevo.'); return; }
+    try {
+      const { error } = await sb.auth.exchangeCodeForSession(code);
+      if (error) onError(error.message);
+    } catch (e) { onError((e && e.message) || String(e)); }
+  });
 }
 export async function signOut() {
   await sb.auth.signOut();

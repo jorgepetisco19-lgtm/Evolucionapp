@@ -1,0 +1,19 @@
+{
+  "name": "evolucionapp-apk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Envoltorio Android (Capacitor) de Evolucionapp. La app real está en la raíz del repositorio (index.html, js/, css/).",
+  "scripts": {
+    "www": "node scripts/prepare-www.mjs",
+    "sync": "node scripts/prepare-www.mjs && cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/browser": "8.0.5",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

@@ -41,7 +41,10 @@ supabase/03-menu.sql   (v6) añade las etiquetas de toma a las recetas
 supabase/04-guarniciones.sql   (v9) añade la etiqueta «guarnición» a esa lista
 supabase/05-primeros.sql   (v10) añade la etiqueta «primer plato» (incluye lo del 04)
 supabase/06-ingredientes.sql   (v11) crea la tabla de tu memoria de ingredientes
-APK.md              guía para pasar la app a APK de Android (qué hacer, costes y riesgos)
+APK.md              guía para conseguir la APK de Android (paso a paso, costes y riesgos)
+android/            (v12.1) proyecto Android generado con Capacitor; no se edita a mano
+capacitor.config.json, package.json, package-lock.json, scripts/prepare-www.mjs   (v12.1) ajustes y herramientas de la APK
+.github/workflows/android.yml   (v12.1) receta que construye la APK en GitHub (pestaña Actions → Run workflow)
 supabase/07-entrenos-reloj.sql   (v12) añade calorías, pulsaciones, distancia y los tipos Correr / Bici / Natación a los entrenos
 supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca alimentos en Open Food Facts por ti (el navegador no puede)
 ```

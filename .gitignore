@@ -1,0 +1,5 @@
+# Cosas que se generan solas y no hay que subir al repositorio
+node_modules/
+www/
+.DS_Store
+Thumbs.db
