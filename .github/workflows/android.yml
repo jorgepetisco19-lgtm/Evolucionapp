@@ -1,0 +1,55 @@
+# Construye la APK de Evolucionapp en los servidores de GitHub (gratis en repositorios públicos).
+# Cómo usarlo: pestaña «Actions» del repositorio → «Construir APK de Android» → «Run workflow».
+# A los ~5-10 minutos, en esa misma ejecución, abajo del todo en «Artifacts», descargas «Evolucionapp-APK» (un .zip con el .apk dentro).
+name: Construir APK de Android
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Instalar Capacitor
+        run: npm ci
+
+      - name: Copiar la web a www/
+        run: node scripts/prepare-www.mjs
+
+      - name: Pasar la web al proyecto Android
+        run: npx cap sync android
+
+      - name: Construir la APK
+        working-directory: android
+        run: |
+          sed -i 's/\r$//' gradlew   # por si Windows le puso saltos de línea de Windows
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=1.${{ github.run_number }}
+
+      - name: Guardar la APK para descargarla
+        uses: actions/upload-artifact@v4
+        with:
+          name: Evolucionapp-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 30
