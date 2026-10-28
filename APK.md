@@ -1,7 +1,7 @@
 # Evolucionapp en APK (Android) — guía
 
 Última revisión: 28 de octubre de 2026. Elegida la **opción B: Capacitor** (la misma web dentro de una APK con acceso al móvil).
-**Estado:** la fase 1 (la app dentro de una APK + login con Google + construcción automática en GitHub) está preparada pero **todavía no se ha compilado nunca**: desde el entorno donde trabajo Claude no se pueden descargar las herramientas de Android, así que el primer intento real lo haces tú en GitHub. Si falla, se arregla viendo el registro de errores (es lo normal en un primer intento).
+**Estado (28 oct 2026):** la construcción en GitHub **funciona** (la primera APK se compiló sin errores). Al instalarla, se quedó en una rueda de carga: faltaba cargar una pieza de Capacitor (`@capacitor/core`) que el puente de Android no trae; corregido en la **v12.2** (el arranque ahora también muestra el motivo en pantalla si algo falla, en vez de dejar la rueda para siempre). Pendiente de que lo pruebes en el móvil.
 
 ---
 
@@ -57,6 +57,7 @@ Cada vez que cambie la web: *Commit + Push* y repetir el **Paso 3**. Las APK nue
 | `scripts/prepare-www.mjs` | Copia solo la web (index, js, css, icons, vendor…) a `www/`, lo que va dentro de la APK. Deja fuera pruebas, SQL y guías. |
 | `android/` | El proyecto Android: icono y pantalla de arranque con tu logo, permiso de Internet, enlace de vuelta del login, firma fija. |
 | `.github/workflows/android.yml` (se crea en el paso 1b; copia en `scripts/receta-github-android.yml`) | La receta que instala Java/Node, copia la web, construye la APK y te la deja descargar. |
+| `vendor/capacitor.js` (solo dentro de la APK; lo añade `prepare-www.mjs`) | La pieza `@capacitor/core` que permite usar el navegador del sistema y el enlace de vuelta del login. |
 | `js/db.js`, `js/app.js` | Login con Google en el navegador del sistema cuando la app va dentro de la APK (en la web normal no cambia nada) y sin service worker en la APK. |
 
 **Decisiones que conviene conocer**

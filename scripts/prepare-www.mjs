@@ -22,5 +22,12 @@ const indexPath = join(out, 'index.html');
 const before = readFileSync(indexPath, 'utf8');
 const after = before.replace(/,\s*viewport-fit=cover/, '');
 if (after === before) throw new Error('No encuentro «viewport-fit=cover» en index.html: revisa scripts/prepare-www.mjs');
-writeFileSync(indexPath, after);
+// Capacitor en Android solo inyecta el «puente» con el móvil; la función registerPlugin (para usar el navegador del
+// sistema y el enlace de vuelta del login) viene en @capacitor/core, que como no usamos empaquetador se carga a mano.
+const corePath = join(root, 'node_modules', '@capacitor', 'core', 'dist', 'capacitor.js');
+if (!existsSync(corePath)) throw new Error('Falta node_modules/@capacitor/core: ejecuta «npm ci» antes');
+cpSync(corePath, join(out, 'vendor', 'capacitor.js'));
+const tag = '<script src="vendor/supabase.js"></script>';
+if (!after.includes(tag)) throw new Error('No encuentro la etiqueta de vendor/supabase.js en index.html');
+writeFileSync(indexPath, after.replace(tag, '<script src="vendor/capacitor.js"></script>\n  ' + tag));
 console.log('www/ listo con:', ENTRIES.join(', '));
