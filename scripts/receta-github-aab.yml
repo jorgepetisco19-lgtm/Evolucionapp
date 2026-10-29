@@ -1,0 +1,77 @@
+# Construye el paquete .aab FIRMADO que se sube a Google Play (Play no acepta APK).
+# Cómo usarlo: pestaña «Actions» → «Construir AAB para Google Play» → «Run workflow».
+# A los ~5-10 minutos, abajo del todo en «Artifacts», descargas «Evolucionapp-AAB» (un .zip con app-release.aab dentro).
+# Necesita 3 secretos en el repositorio (Settings → Secrets and variables → Actions → New repository secret):
+#   UPLOAD_KEYSTORE_BASE64    el contenido del archivo clave-subida-base64.txt
+#   UPLOAD_KEYSTORE_PASSWORD  la contraseña de la clave
+#   UPLOAD_KEY_ALIAS          upload
+name: Construir AAB para Google Play
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+      UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+      UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+    steps:
+      - name: Comprobar que están los secretos de la clave
+        run: |
+          for v in UPLOAD_KEYSTORE_BASE64 UPLOAD_KEYSTORE_PASSWORD UPLOAD_KEY_ALIAS; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Falta el secreto $v. Créalo en Settings → Secrets and variables → Actions (mira APK.md, «Fase 5»)."
+              exit 1
+            fi
+          done
+
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Preparar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Instalar Capacitor
+        run: npm ci
+
+      - name: Copiar la web a www/
+        run: node scripts/prepare-www.mjs
+
+      - name: Pasar la web al proyecto Android
+        run: npx cap sync android
+
+      - name: Reconstruir la clave de subida
+        run: |
+          echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          echo "UPLOAD_KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+
+      - name: Construir el AAB firmado
+        working-directory: android
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon -PversionCode=${{ github.run_number }} -PversionName=1.${{ github.run_number }}
+
+      - name: Guardar el AAB para descargarlo
+        uses: actions/upload-artifact@v4
+        with:
+          name: Evolucionapp-AAB
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30

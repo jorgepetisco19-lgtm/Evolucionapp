@@ -53,6 +53,8 @@ APK.md              guía para conseguir la APK de Android (paso a paso, costes 
 android/            (v12.1) proyecto Android generado con Capacitor; no se edita a mano
 capacitor.config.json, package.json, package-lock.json, scripts/prepare-www.mjs   (v12.1) ajustes y herramientas de la APK
 .github/workflows/android.yml   (v12.1) receta que construye la APK en GitHub (pestaña Actions → Run workflow)
+.github/workflows/aab.yml       (v18) receta que construye el .aab FIRMADO para Google Play (necesita 3 secretos; ver APK.md «Fase 5»)
+android/.../PermissionsRationaleActivity.java (v18) pantalla que Health Connect abre para mostrar la política de privacidad
 supabase/07-entrenos-reloj.sql   (v12) añade calorías, pulsaciones, distancia y los tipos Correr / Bici / Natación a los entrenos
 supabase/08-entrenos-health-connect.sql   (v13) añade el identificador de Health Connect para no importar dos veces el mismo entreno
 supabase/09-objetivo-semanal.sql   (v14) añade a tu perfil el objetivo semanal de entrenos (racha y medallas)

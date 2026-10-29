@@ -120,6 +120,25 @@ Primer paso hacia Google Play (que exige poder borrar la cuenta desde la app). E
 - **Para Play:** además de esto faltan el `.aab` firmado, una página pública que explique cómo borrar la cuenta (con un correo de contacto), el aviso de «no es consejo médico», la ficha de la tienda y la prueba cerrada con 12 testers durante 14 días.
 - **Sin probar en móvil real:** el guardado y el menú de compartir (solo simulados) y la compilación con los dos plugins nuevos.
 
+## Fase 5 · Preparar el .aab para Google Play (v18)
+
+Play no acepta APK: pide un **.aab** firmado con una clave tuya y privada. Esto NO sustituye a la APK de siempre: esa sigue con su clave de pruebas y se instala encima de la anterior.
+
+**1. Guardar la clave (una sola vez).** Te entregué `clave-de-subida-evolucionapp.zip` (clave, contraseña y los secretos). Guárdalo en **dos sitios fuera de GitHub** (p. ej. tu correo y un USB). Con Play App Signing, si perdieras la clave de subida Google puede restablecerla, pero es un trámite; mejor no perderla. **Nunca** la subas al repositorio (el `.gitignore` ya bloquea `*.jks`).
+
+**2. Crear 3 secretos en GitHub.** Repositorio → Settings → Secrets and variables → Actions → New repository secret:
+- `UPLOAD_KEYSTORE_BASE64`: todo el contenido de `clave-subida-base64.txt` (una línea larga).
+- `UPLOAD_KEYSTORE_PASSWORD`: la contraseña que pone `LEEME-clave-subida.txt`.
+- `UPLOAD_KEY_ALIAS`: `upload`.
+
+**3. Construir.** Actions → «Construir AAB para Google Play» → Run workflow. A los ~5-10 min, en Artifacts, descarga `Evolucionapp-AAB` (zip con `app-release.aab`). Si falta algún secreto, el propio workflow lo dice en rojo.
+
+**4. Pantalla de Health Connect.** La app ya tiene la pantalla que Android abre cuando alguien pulsa «política de privacidad» en el permiso de Health Connect (Android 13 o menos y Android 14 o más): abre `privacidad.html`. La política que pongas en la ficha de Play debe ser esa misma.
+
+**5. Ojo al instalar desde Play.** La app de Play va firmada por Google, distinta de tu APK de pruebas: en un móvil con la APK instalada hay que **desinstalarla** antes de instalar la de Play (se pierden solo los datos locales, no los de tu cuenta).
+
+**Sin probar:** que Gradle firme el .aab con tu clave y que Play lo acepte (no hay Android SDK aquí); la pantalla de Health Connect en un móvil real.
+
 ## Publicar en Google Play (solo si algún día lo quieres)
 - 25 $ una sola vez. Si la cuenta de desarrollador es personal y se creó después del 13 de noviembre de 2023, Google exige una **prueba cerrada con al menos 12 testers inscritos 14 días seguidos** antes de publicar ([ayuda de Google Play](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en-GB)).
 - Hace falta una clave de firma propia y privada, y, con datos de salud, la *declaración de apps de salud* ([documentación de Android](https://developer.android.com/health-and-fitness/health-connect/declare-access)). No he comprobado si hace falta para instalaciones a mano.

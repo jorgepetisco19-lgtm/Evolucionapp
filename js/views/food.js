@@ -52,7 +52,8 @@ async function renderDay(el, params) {
       <div class="kcal-big"><strong>${num(sum.kcal, 0)}</strong> <span class="muted">kcal</span></div>
       ${goalPlan ? html`<div class="goal-line">
         <div class="bar"><i style="width:${Math.min(100, Math.round((sum.kcal / goalPlan.target) * 100))}%" class="${sum.kcal > goalPlan.target ? 'over' : ''}"></i></div>
-        <p class="small muted">${t('food.goal')}: <b>${num(goalPlan.target, 0)} kcal</b> · ${sum.kcal > goalPlan.target ? t('food.over', { n: num(sum.kcal - goalPlan.target, 0) }) : t('food.left', { n: num(goalPlan.target - sum.kcal, 0) })}</p></div>`
+        <p class="small muted">${t('food.goal')}: <b>${num(goalPlan.target, 0)} kcal</b> · ${sum.kcal > goalPlan.target ? t('food.over', { n: num(sum.kcal - goalPlan.target, 0) }) : t('food.left', { n: num(goalPlan.target - sum.kcal, 0) })}</p>
+        <p class="tiny muted">${t('food.disclaimer')}</p></div>`
         : html`<p class="tiny"><a href="#/profile">${t('food.setGoal')} ›</a></p>`}
       <div class="macros">
         <div><b>${num(sum.protein, 0)} g</b><span>${t('food.protein')}</span></div>

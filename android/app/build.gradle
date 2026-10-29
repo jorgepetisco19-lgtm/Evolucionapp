@@ -20,8 +20,12 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // Firma FIJA (clave de pruebas incluida en el repositorio): así cada APK nueva se instala encima de la anterior sin desinstalar.
-    // No vale para Google Play: para publicar habría que crear una clave privada propia.
+    // Dos firmas:
+    //  · «evolucionapp»: clave de PRUEBAS incluida en el repositorio (contraseña pública). Sirve para la APK que te instalas
+    //    a mano: así cada APK nueva se instala encima de la anterior sin desinstalar. NO vale para Google Play.
+    //  · «subida»: tu clave PRIVADA para Google Play. No está en el repositorio: el workflow «Construir AAB para Google Play»
+    //    la recibe de los secretos de GitHub (variables UPLOAD_KEYSTORE_PATH, UPLOAD_KEYSTORE_PASSWORD, UPLOAD_KEY_ALIAS).
+    def uploadKeystorePath = System.getenv('UPLOAD_KEYSTORE_PATH')
     signingConfigs {
         evolucionapp {
             storeFile file('evolucionapp.keystore')
@@ -29,13 +33,21 @@ android {
             keyAlias 'evolucionapp'
             keyPassword 'evolucionapp'
         }
+        if (uploadKeystorePath) {
+            subida {
+                storeFile file(uploadKeystorePath)
+                storePassword System.getenv('UPLOAD_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('UPLOAD_KEY_ALIAS') ?: 'upload'
+                keyPassword System.getenv('UPLOAD_KEYSTORE_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.evolucionapp
         }
         release {
-            signingConfig signingConfigs.evolucionapp
+            signingConfig uploadKeystorePath ? signingConfigs.subida : signingConfigs.evolucionapp
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
