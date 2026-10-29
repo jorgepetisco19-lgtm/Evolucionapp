@@ -3,14 +3,16 @@ import { html, raw, dateTiny, parseDate, num } from './util.js';
 
 /**
  * points: [{ x: 'YYYY-MM-DD', y: number }] ordenados por fecha.
+ * trend (opcional, v16): otra serie con las mismas fechas (la tendencia). Se dibuja como la línea gruesa y los datos reales pasan a segundo plano.
  */
-export function lineChart(points, { unit = '', decimals = 1, height = 180 } = {}) {
+export function lineChart(points, { unit = '', decimals = 1, height = 180, trend = null } = {}) {
   const W = 340, H = height, L = 44, R = 14, T = 14, B = 24;
   if (points.length < 2) {
     return html`<div class="chart-empty">${points.length ? num(points[0].y, decimals) + ' ' + unit : ''}</div>`;
   }
   const xs = points.map((p) => parseDate(p.x).getTime());
-  const ys = points.map((p) => p.y);
+  const tr = trend && trend.length >= 2 ? trend : null;
+  const ys = points.map((p) => p.y).concat(tr ? tr.map((p) => p.y) : []);
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
   if (y0 === y1) { y0 -= 1; y1 += 1; }
@@ -25,11 +27,13 @@ export function lineChart(points, { unit = '', decimals = 1, height = 180 } = {}
   const dots = points.length <= 40
     ? points.map((p, i) => `<circle cx="${sx(xs[i]).toFixed(1)}" cy="${sy(p.y).toFixed(1)}" r="3" class="ch-dot"><title>${dateTiny(p.x)}: ${num(p.y, decimals)} ${unit}</title></circle>`).join('')
     : '';
-  return html`<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" preserveAspectRatio="xMidYMid meet">
+  const trendPath = tr ? tr.map((p, i) => `${i ? 'L' : 'M'}${sx(parseDate(p.x).getTime()).toFixed(1)},${sy(p.y).toFixed(1)}`).join(' ') : '';
+  return html`<svg viewBox="0 0 ${W} ${H}" class="chart ${tr ? 'has-trend' : ''}" role="img" preserveAspectRatio="xMidYMid meet">
     ${raw(ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${sy(v).toFixed(1)}" y2="${sy(v).toFixed(1)}" class="ch-grid"/><text x="${L - 4}" y="${(sy(v) + 3).toFixed(1)}" class="ch-axis" text-anchor="end">${num(v, decimals)}</text>`).join(''))}
     <path d="${area}" class="ch-area"/>
     <path d="${path}" class="ch-line"/>
     ${raw(dots)}
+    ${tr ? raw(`<path d="${trendPath}" class="ch-trend"><title>${tr[tr.length - 1].x}: ${num(tr[tr.length - 1].y, decimals)} ${unit}</title></path>`) : ''}
     <circle cx="${sx(xs[xs.length - 1]).toFixed(1)}" cy="${sy(last.y).toFixed(1)}" r="4.5" class="ch-last"/>
     <text x="${L}" y="${H - 6}" class="ch-axis">${dateTiny(points[0].x)}</text>
     <text x="${W - R}" y="${H - 6}" class="ch-axis" text-anchor="end">${dateTiny(last.x)}</text>

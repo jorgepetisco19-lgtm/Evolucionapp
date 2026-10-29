@@ -5,8 +5,10 @@ import { lineChart } from '../charts.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, dateShort, num, signed, toNum, fail, toast, navigate, refresh, confirmBox, addDays,
 } from '../util.js';
-import { t } from '../i18n.js';
+import { t, locale } from '../i18n.js';
 import { ICONS } from '../icons.js';
+import { loadProfile, saveProfile } from '../plan.js';
+import { trendSeries, projection, MIN_TARGET, MAX_TARGET } from '../weight-trend.js';
 
 const MEASURE_FIELDS = MEASURES.map((key) => ({ key, unit: 'cm', step: 0.1, min: 20, max: 250 }));
 
@@ -41,6 +43,13 @@ async function renderRecords(el, tab, params) {
   const cfg = CFG[tab];
   const rows = await listAll(cfg.table, { asc: true });
   const st = view[tab];
+  // Solo en Peso (v16): tendencia y meta. La meta es el «peso objetivo» del Perfil; si no se puede leer el perfil, simplemente no hay meta.
+  let goal = null;
+  if (tab === 'weight') {
+    try { const p = await loadProfile(); goal = p && p.goal_weight_kg != null ? Number(p.goal_weight_kg) : null; } catch (e) { console.warn(e); }
+  }
+  const weights = tab === 'weight' ? rows.filter((r) => r.weight_kg != null).map((r) => ({ x: r.date, y: Number(r.weight_kg) })) : [];
+  const trendAll = trendSeries(weights);
   const withData = cfg.fields.filter((f) => rows.some((r) => r[f.key] != null));
   if (!withData.find((f) => f.key === st.metric)) st.metric = (withData[0] || cfg.fields[0]).key;
 
@@ -53,6 +62,8 @@ async function renderRecords(el, tab, params) {
       pts = pts.filter((r) => r.date >= from);
     }
     const points = pts.map((r) => ({ x: r.date, y: Number(r[st.metric]) }));
+    const inView = new Set(pts.map((r) => r.date));
+    const showTrend = tab === 'weight' && st.metric === 'weight_kg' && points.length >= 3;
     const last = rows.filter((r) => r[cfg.primary] != null);
     const cur = last[last.length - 1];
     const prev = last[last.length - 2];
@@ -64,7 +75,7 @@ async function renderRecords(el, tab, params) {
           <div><span class="muted small">${t('body.current')}</span><strong>${num(cur[cfg.primary], pdec)} <small>${unit}</small></strong><span class="muted tiny">${dateShort(cur.date)}</span></div>
           <div><span class="muted small">${t('body.vsPrev')}</span><strong>${prev ? signed(cur[cfg.primary] - prev[cfg.primary], pdec) : '—'}</strong></div>
           <div><span class="muted small">${t('body.total')}</span><strong>${first && first !== cur ? signed(cur[cfg.primary] - first[cfg.primary], pdec) : '—'}</strong></div>
-        </div>`
+        </div>${tab === 'weight' ? trendBlock(weights, goal) : ''}`
       : '';
     const list = [...rows].reverse();
     setHtml(el, html`
@@ -84,7 +95,8 @@ async function renderRecords(el, tab, params) {
               ${['30', '90', 'all'].map((r) => html`<button data-range="${r}" class="${st.range === r ? 'on' : ''}">${t('body.range.' + r)}</button>`)}
             </div>
           </div>
-          ${lineChart(points, { unit: field.unit, decimals: dec })}
+          ${lineChart(points, { unit: field.unit, decimals: dec, trend: showTrend ? trendAll.filter((p) => inView.has(p.x)) : null })}
+          ${showTrend && points.length >= 3 ? html`<p class="tiny muted chart-legend">${t('trend.legend')}</p>` : ''}
         </div>
         <div class="card list">
           <h3>${t('body.history')}</h3>
@@ -108,6 +120,7 @@ async function renderRecords(el, tab, params) {
     openForm(tab, rows, { date: rec.date, existing: rec });
   });
   on(el, 'click', '#add-btn', () => openForm(tab, rows, { date: todayStr() }));
+  on(el, 'click', '[data-goal]', () => openGoal(goal));
   on(el, 'click', '#ocr-btn', () => el.querySelector('#ocr-file').click());
   on(el, 'change', '#ocr-file', (e, input) => { if (input.files[0]) fromCapture(input.files[0], rows); input.value = ''; });
   draw();
@@ -117,6 +130,61 @@ async function renderRecords(el, tab, params) {
     history.replaceState({}, '', `#/body?tab=${tab}`);
     openForm(tab, rows, { date: params.date, existing });
   }
+}
+
+// ---------- tendencia y meta (v16) ----------
+const fmtEta = (d) => {
+  const date = new Date(d + 'T12:00:00');
+  const opts = date.getFullYear() === new Date().getFullYear() ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' };
+  return new Intl.DateTimeFormat(locale(), opts).format(date);
+};
+
+/** Filas «Tendencia · Meta · A este ritmo» bajo las cifras del peso. */
+function trendBlock(weights, goal) {
+  const pr = projection(weights, goal, todayStr());
+  if (pr.status === 'noData') return '';
+  const rate = pr.perWeek === null ? '' : Math.abs(pr.perWeek) < 0.05 ? ` · ${t('trend.stable')}` : ` · ${signed(pr.perWeek, 1)} ${t('trend.week')}`;
+  const hasGoal = pr.status !== 'noTarget';
+  const goalVal = !hasGoal ? html`<span class="muted">${t('trend.noGoal')}</span>`
+    : pr.status === 'reached' ? html`${num(goal, 1)} kg · ✅ ${t('trend.reached')}`
+    : html`${num(goal, 1)} kg · ${t('trend.left', { n: num(Math.abs(pr.remaining), 1) })}`;
+  const pace = pr.status === 'eta' ? t('trend.eta', { d: fmtEta(pr.date) })
+    : pr.status === 'away' ? t('trend.away') : pr.status === 'far' ? t('trend.far') : '';
+  return html`
+    <dl class="kv trend-kv">
+      <div><dt>${t('trend.label')}</dt><dd>${num(pr.current, 1)} kg${rate}</dd></div>
+      <div><dt>${t('trend.goal')}</dt><dd class="wrap">${goalVal} <button type="button" class="btn-link" data-goal="1">${t(hasGoal ? 'trend.change' : 'trend.set')}</button></dd></div>
+      ${pace ? html`<div><dt>${t('trend.pace')}</dt><dd class="wrap">${pace}</dd></div>` : ''}
+    </dl>
+    ${pr.perWeek === null ? html`<p class="tiny muted">${t('trend.few')}</p>` : ''}`;
+}
+
+/** Ventana para fijar, cambiar o quitar la meta (se guarda en el Perfil: profiles.goal_weight_kg). */
+function openGoal(goal) {
+  const m = openModal(html`
+    <form id="goal-form" autocomplete="off">
+      <label class="field"><span>${t('trend.goalField')}</span>
+        <input type="number" name="goal" inputmode="decimal" step="any" min="${MIN_TARGET}" max="${MAX_TARGET}" value="${goal ?? ''}" placeholder="—" required></label>
+      <p class="tiny muted">${t('trend.goalHint')}</p>
+      <div class="form-actions">
+        ${goal != null ? html`<button type="button" class="btn danger" id="goal-del">${t('trend.remove')}</button>` : ''}
+        <button class="btn primary" type="submit">${t('common.save')}</button>
+      </div>
+    </form>`, { title: t('trend.modal') });
+  const form = m.body.querySelector('#goal-form');
+  const store = async (val, btn) => {
+    btn.disabled = true;
+    try { await saveProfile({ goal_weight_kg: val }); m.close(); toast(t('common.saved')); refresh(); } catch (err) { btn.disabled = false; fail(err); }
+  };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const v = toNum(form.goal.value);
+    if (v === null || v < MIN_TARGET || v > MAX_TARGET) { toast(t('trend.badGoal', { min: MIN_TARGET, max: MAX_TARGET }), 'error'); return; }
+    store(Math.round(v * 10) / 10, form.querySelector('[type=submit]'));
+  };
+  const del = m.body.querySelector('#goal-del');
+  if (del) del.onclick = () => store(null, del);
+  return m;
 }
 
 // ---------- formulario (crear / editar) ----------
