@@ -60,6 +60,7 @@ Cada vez que cambie la web: *Commit + Push* y repetir el **Paso 3**. Las APK nue
 | `android/` | El proyecto Android: icono y pantalla de arranque con tu logo, permiso de Internet, enlace de vuelta del login, firma fija. |
 | `.github/workflows/android.yml` (se crea en el paso 1b; copia en `scripts/receta-github-android.yml`) | La receta que instala Java/Node, copia la web, construye la APK y te la deja descargar. |
 | `js/health.js` | Lee Health Connect (solo APK): permisos, lista de entrenos, pulsaciones y conversión a un entreno de la app. |
+| `js/account.js` · `js/export.js` · `js/views/delete-account.js` | Borrar cuenta y descargar datos (v17). |
 | `js/reminders.js` · `js/views/reminders-card.js` | Avisos (v15): ajustes en el móvil, planificador de 14 días, permiso y notificaciones locales; tarjeta de Ajustes. |
 | `vendor/capacitor.js` (solo dentro de la APK; lo añade `prepare-www.mjs`) | La pieza `@capacitor/core` que permite usar el navegador del sistema y el enlace de vuelta del login. |
 | `js/db.js`, `js/app.js` | Login con Google en el navegador del sistema cuando la app va dentro de la APK (en la web normal no cambia nada) y sin service worker en la APK. |
@@ -108,6 +109,16 @@ Dos recordatorios opcionales, que tú configuras en **Ajustes → Avisos**: «¿
 - **Xiaomi / Redmi / POCO y similares:** si no llegan a su hora, ve a Ajustes → Apps → Evolucionapp → **Ahorro de batería → Sin restricciones** y activa también **Inicio automático**. El botón «Probar con un aviso» de Ajustes lanza uno de prueba a los 5 segundos para comprobarlo.
 - **Plugin:** `@capacitor/local-notifications` 8.3.1 (MIT). Se quita el permiso de alarmas exactas (`SCHEDULE_EXACT_ALARM`) del manifiesto; se mantienen los de notificaciones, arranque (para reprogramar tras reiniciar el móvil) y `WAKE_LOCK`. El icono de la notificación es `android/app/src/main/res/drawable/ic_stat_evolucionapp.xml`.
 - **Sin probar en móvil real:** la lógica y el puente con el plugin están probados con una simulación en el navegador; la entrega real (sobre todo en Xiaomi) hay que verla en tu móvil.
+
+## Fase 4 · Descargar datos y borrar cuenta (v17)
+
+Primer paso hacia Google Play (que exige poder borrar la cuenta desde la app). En **Ajustes → Cuenta**:
+
+- **Descargar mis datos:** un ZIP con un CSV por tabla (perfil, pesos, medidas, entrenos, rutinas, comidas, recetas, ingredientes y la lista de fotos) y un LEEME. **Las fotos no se incluyen.** En la web se descarga; en la APK se guarda en la caché y se abre el menú de «Compartir» de Android (Drive, correo, Telegram…). Usa dos plugins oficiales nuevos: `@capacitor/filesystem` 8.1.5 y `@capacitor/share` 8.0.3 (MIT, sin permisos nuevos en el manifiesto).
+- **Borrar mi cuenta y mis datos:** hay que escribir BORRAR para confirmar. Orden: (1) ensayo en el servidor — si falta el SQL se avisa sin tocar nada; (2) se borran los archivos de las fotos del almacenamiento; (3) se borra el usuario y la base de datos borra con él todas sus filas; (4) se cierra la sesión. **No se puede deshacer.**
+- **SQL nuevo:** `supabase/10-borrar-cuenta.sql` (función `delete_my_account`, solo borra a quien la llama).
+- **Para Play:** además de esto faltan el `.aab` firmado, una página pública que explique cómo borrar la cuenta (con un correo de contacto), el aviso de «no es consejo médico», la ficha de la tienda y la prueba cerrada con 12 testers durante 14 días.
+- **Sin probar en móvil real:** el guardado y el menú de compartir (solo simulados) y la compilación con los dos plugins nuevos.
 
 ## Publicar en Google Play (solo si algún día lo quieres)
 - 25 $ una sola vez. Si la cuenta de desarrollador es personal y se creó después del 13 de noviembre de 2023, Google exige una **prueba cerrada con al menos 12 testers inscritos 14 días seguidos** antes de publicar ([ayuda de Google Play](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en-GB)).

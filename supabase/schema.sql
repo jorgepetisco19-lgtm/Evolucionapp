@@ -197,3 +197,29 @@ create unique index if not exists workouts_external_id_uidx
 -- Objetivo semanal de entrenos (v14). Instalaciones anteriores: ejecutar supabase/09-objetivo-semanal.sql
 alter table public.profiles
   add column if not exists weekly_workout_goal smallint check (weekly_workout_goal between 1 and 14);
+
+-- ---------- Borrar mi cuenta (v17): ver supabase/10-borrar-cuenta.sql ----------
+create or replace function public.delete_my_account(dry_run boolean default false)
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'Hay que iniciar sesión para borrar la cuenta' using errcode = '28000';
+  end if;
+  if dry_run then
+    return;
+  end if;
+  delete from auth.users where id = uid;
+end;
+$$;
+
+-- Si ya habías ejecutado una versión anterior sin «dry_run», se quita para que no haya dos funciones con el mismo nombre.
+drop function if exists public.delete_my_account();
+
+revoke all on function public.delete_my_account(boolean) from public, anon;
+grant execute on function public.delete_my_account(boolean) to authenticated;

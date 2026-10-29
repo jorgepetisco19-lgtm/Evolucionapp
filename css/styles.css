@@ -431,3 +431,7 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 .trend-kv { margin: 4px 0 8px; }
 .trend-kv dd.wrap { white-space: normal; text-align: right; }
 .btn-link { background: none; border: 0; padding: 2px 0 2px 6px; font: inherit; font-weight: 600; color: var(--primary); cursor: pointer; text-decoration: underline; }
+
+/* ---------- Borrar cuenta (v17) ---------- */
+.acct-del { margin: 14px 0 0; }
+.acct-del .btn-link { color: var(--red); font-weight: 500; }

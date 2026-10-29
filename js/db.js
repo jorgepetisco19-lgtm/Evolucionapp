@@ -80,6 +80,15 @@ export async function listRange(table, from, to, cols = '*', order = 'date') {
 export async function listAll(table, { order = 'date', asc = false, cols = '*', limit = 1000 } = {}) {
   return check(await sb.from(table).select(cols).order(order, { ascending: asc }).limit(limit));
 }
+// Todas las filas de una tabla, de 1000 en 1000 (el servidor no devuelve más de 1000 por petición). Orden por id para que las páginas no se mezclen.
+export async function listEvery(table, cols = '*') {
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const data = check(await sb.from(table).select(cols).order('id', { ascending: true }).range(from, from + 999));
+    out.push(...data);
+    if (data.length < 1000) return out;
+  }
+}
 export async function getBy(table, col, val) {
   return check(await sb.from(table).select('*').eq(col, val));
 }

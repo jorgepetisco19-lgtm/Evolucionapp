@@ -1,9 +1,11 @@
 // Ajustes: idioma, tema, avisos (solo APK), instalar la app y cerrar sesión.
 import { session, signOut } from '../db.js';
-import { html, setHtml, on, fail } from '../util.js';
+import { html, setHtml, on, fail, toast } from '../util.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { openTour, showSteps } from '../onboarding.js';
 import { mountReminders } from './reminders-card.js';
+import { openDeleteAccount } from './delete-account.js';
+import { exportAndSave } from '../export.js';
 
 const THEMES = ['auto', 'light', 'dark'];
 const getTheme = () => { try { return localStorage.getItem('theme') || 'auto'; } catch { return 'auto'; } };
@@ -31,7 +33,12 @@ export async function render(el) {
     <div class="card">
       <h3>${t('settings.account')}</h3>
       <p class="muted">${email}</p>
-      <button class="btn danger" id="logout">${t('settings.logout')}</button>
+      <div class="row-actions">
+        <button class="btn" id="export">${t('exp.btn')}</button>
+        <button class="btn danger" id="logout">${t('settings.logout')}</button>
+      </div>
+      <p class="tiny muted">${t('exp.help')}</p>
+      <p class="tiny muted acct-del"><button type="button" class="btn-link" id="del-acct">${t('acct.open')}</button></p>
     </div>
     <p class="tiny muted center"><a href="privacidad.html">${t('login.privacy')}</a> · <a href="terminos.html">${t('login.terms')}</a> · ${window.APP_VERSION || ''}</p>`);
   mountReminders(el.querySelector('#rem-box'));
@@ -49,6 +56,20 @@ export async function render(el) {
     await p.userChoice;
     window.__installPrompt = null;
   });
+  // Descargar mis datos: el botón se desactiva mientras se prepara (si no, dos toques seguidos descargarían dos copias).
+  const runExport = async () => {
+    const b = el.querySelector('#export');
+    const label = b ? b.textContent : '';
+    if (b) { if (b.disabled) return; b.disabled = true; b.textContent = t('exp.preparing'); }
+    try {
+      const r = await exportAndSave();
+      toast(t(r.kind === 'shared' ? 'exp.shared' : 'exp.saved', { name: r.name }));
+    } catch (e) {
+      if (e && e.message === 'NEEDS_UPDATE') toast(t('exp.needsApk'), 'error'); else fail(e);
+    } finally { if (b) { b.disabled = false; b.textContent = label; } }
+  };
+  on(el, 'click', '#export', runExport);
+  on(el, 'click', '#del-acct', () => openDeleteAccount({ onExport: runExport }));
   on(el, 'click', '#logout', async () => {
     try { await signOut(); } catch (e) { fail(e); }
   });

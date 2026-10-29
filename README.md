@@ -23,6 +23,8 @@ js/views/           una pantalla por archivo (inicio, cuerpo, fotos, comparador,
 js/ocr.js           lectura de la captura de la báscula (2 pasadas: etiquetas y números)
 js/workout-ocr.js   (v12) lectura de la captura del resumen de un entreno (duración, kcal, pulsaciones, distancia)
 js/health.js        (v13) importar entrenos de Health Connect (solo en la APK de Android)
+js/account.js       (v17) borrar la cuenta y todos los datos (primero un ensayo en el servidor, luego fotos, luego usuario)
+js/export.js        (v17) descargar mis datos: CSV por tabla + ZIP sin librerías; en la APK se guarda y se abre «Compartir»
 js/weight-trend.js  (v16) tendencia de peso (media móvil), ritmo en kg/semana y proyección a la meta
 js/reminders.js     (v15) avisos de la APK: planificador de 14 días, permisos y programación de notificaciones locales
 js/views/reminders-card.js   (v15) tarjeta «Avisos» de Ajustes (interruptor, hora y días de cada aviso)
@@ -78,6 +80,8 @@ supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca 
 **Para importar entrenos de Health Connect (v13, solo APK):** ejecuta también `supabase/08-entrenos-health-connect.sql` (mismo procedimiento; seguro repetirlo). Detalles en `APK.md`.
 
 **Para el Resumen de Deporte (v14):** ejecuta `supabase/09-objetivo-semanal.sql` (mismo procedimiento; seguro repetirlo). Sin él, el Resumen funciona igual pero el objetivo semanal no se guarda (usa 3) y la app te avisa.
+
+**Borrar cuenta (v17):** ejecuta `supabase/10-borrar-cuenta.sql` (SQL Editor → pegar → Run; seguro repetirlo). Crea la función `delete_my_account()`. Sin ella, el botón de Ajustes avisa de que falta este paso y no borra nada. «Descargar mis datos» no necesita SQL.
 
 **Tendencia de peso (v16):** no necesita SQL: la meta es el «peso objetivo» que ya guarda tu Perfil. Se ve en Cuerpo → Peso (línea gruesa, filas Tendencia / Meta / A este ritmo). Solo da fecha con al menos 5 pesajes en las últimas 4 semanas que abarquen 2 semanas.
 
