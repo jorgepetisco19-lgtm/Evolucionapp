@@ -23,6 +23,8 @@ js/views/           una pantalla por archivo (inicio, cuerpo, fotos, comparador,
 js/ocr.js           lectura de la captura de la báscula (2 pasadas: etiquetas y números)
 js/workout-ocr.js   (v12) lectura de la captura del resumen de un entreno (duración, kcal, pulsaciones, distancia)
 js/health.js        (v13) importar entrenos de Health Connect (solo en la APK de Android)
+js/reminders.js     (v15) avisos de la APK: planificador de 14 días, permisos y programación de notificaciones locales
+js/views/reminders-card.js   (v15) tarjeta «Avisos» de Ajustes (interruptor, hora y días de cada aviso)
 js/sport-stats.js   (v14) cuentas del Resumen de Deporte: semanas, racha, medallas, totales por mes y por tipo
 js/views/sport-summary.js   (v14) pestaña Resumen de Deporte: racha semanal, medallas, cifras del mes, reparto por tipo y gráficos
 js/db.js            todo el acceso a Supabase
@@ -75,6 +77,8 @@ supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca 
 **Para importar entrenos de Health Connect (v13, solo APK):** ejecuta también `supabase/08-entrenos-health-connect.sql` (mismo procedimiento; seguro repetirlo). Detalles en `APK.md`.
 
 **Para el Resumen de Deporte (v14):** ejecuta `supabase/09-objetivo-semanal.sql` (mismo procedimiento; seguro repetirlo). Sin él, el Resumen funciona igual pero el objetivo semanal no se guarda (usa 3) y la app te avisa.
+
+**Avisos (v15, solo APK):** no necesitan SQL ni nada en Supabase; los ajustes se guardan en el propio móvil. Detalles en `APK.md`.
 
 Si Google devuelve `redirect_uri_mismatch`, espera unos minutos (Google tarda en aplicar los cambios) y revisa que la URI de redirección sea exactamente
 `https://nxcyupxvkygghlwpboge.supabase.co/auth/v1/callback`.

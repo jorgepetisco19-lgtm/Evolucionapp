@@ -60,6 +60,7 @@ Cada vez que cambie la web: *Commit + Push* y repetir el **Paso 3**. Las APK nue
 | `android/` | El proyecto Android: icono y pantalla de arranque con tu logo, permiso de Internet, enlace de vuelta del login, firma fija. |
 | `.github/workflows/android.yml` (se crea en el paso 1b; copia en `scripts/receta-github-android.yml`) | La receta que instala Java/Node, copia la web, construye la APK y te la deja descargar. |
 | `js/health.js` | Lee Health Connect (solo APK): permisos, lista de entrenos, pulsaciones y conversión a un entreno de la app. |
+| `js/reminders.js` · `js/views/reminders-card.js` | Avisos (v15): ajustes en el móvil, planificador de 14 días, permiso y notificaciones locales; tarjeta de Ajustes. |
 | `vendor/capacitor.js` (solo dentro de la APK; lo añade `prepare-www.mjs`) | La pieza `@capacitor/core` que permite usar el navegador del sistema y el enlace de vuelta del login. |
 | `js/db.js`, `js/app.js` | Login con Google en el navegador del sistema cuando la app va dentro de la APK (en la web normal no cambia nada) y sin service worker en la APK. |
 
@@ -94,6 +95,19 @@ Cada vez que cambie la web: *Commit + Push* y repetir el **Paso 3**. Las APK nue
 - La **política de privacidad** se actualizó y se copia como `privacypolicy.html` dentro de la APK: es la página que Health Connect enseña al pulsar «Política de privacidad» en su pantalla de permisos.
 
 **Riesgos:** la compilación en GitHub puede fallar la primera vez por el plugin nuevo (Kotlin/Gradle; no he podido compilarlo aquí): si pasa, copia el error y se arregla. Y todo lo de Health Connect está probado con el puente real de Android simulado, **no con un móvil y un reloj reales**.
+
+## Fase 3 · Avisos (v15, solo APK)
+
+Dos recordatorios opcionales, que tú configuras en **Ajustes → Avisos**: «¿Te has pesado hoy?» y «¿Has entrenado hoy?». Cada uno tiene su interruptor (apagados de entrada), su hora (por defecto 09:00 y 21:00) y los días de la semana.
+
+- **Cómo funcionan:** la app programa en el propio móvil los avisos de los **próximos 14 días**, uno por día, y los vuelve a programar cada vez que la abres, vuelves a ella o guardas un peso/entreno. Si **hoy ya has registrado** ese dato, el aviso de hoy no suena. Si pasas unas dos semanas sin abrir la app, los avisos se acaban solos (no hay servidor que los siga mandando).
+- **Permiso:** Android 13 o superior pide permiso de notificaciones; la app lo pide **solo al activar el primer aviso**. Si lo rechazas, el interruptor se queda apagado y se explica cómo darlo desde los ajustes del móvil.
+- **Sin alarmas exactas:** el aviso llega «sobre» la hora (puede variar unos minutos, más si el móvil está en reposo). A cambio no se pide el permiso especial de alarmas exactas.
+- **Al tocar el aviso:** el de peso abre Cuerpo y el de entreno abre Deporte.
+- **Datos:** la hora y los días se guardan solo en el móvil (no en Supabase; no hay SQL nuevo). Cambiar de móvil o reinstalar obliga a configurarlos de nuevo. Al cerrar sesión se cancelan todos.
+- **Xiaomi / Redmi / POCO y similares:** si no llegan a su hora, ve a Ajustes → Apps → Evolucionapp → **Ahorro de batería → Sin restricciones** y activa también **Inicio automático**. El botón «Probar con un aviso» de Ajustes lanza uno de prueba a los 5 segundos para comprobarlo.
+- **Plugin:** `@capacitor/local-notifications` 8.3.1 (MIT). Se quita el permiso de alarmas exactas (`SCHEDULE_EXACT_ALARM`) del manifiesto; se mantienen los de notificaciones, arranque (para reprogramar tras reiniciar el móvil) y `WAKE_LOCK`. El icono de la notificación es `android/app/src/main/res/drawable/ic_stat_evolucionapp.xml`.
+- **Sin probar en móvil real:** la lógica y el puente con el plugin están probados con una simulación en el navegador; la entrega real (sobre todo en Xiaomi) hay que verla en tu móvil.
 
 ## Publicar en Google Play (solo si algún día lo quieres)
 - 25 $ una sola vez. Si la cuenta de desarrollador es personal y se creó después del 13 de noviembre de 2023, Google exige una **prueba cerrada con al menos 12 testers inscritos 14 días seguidos** antes de publicar ([ayuda de Google Play](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en-GB)).

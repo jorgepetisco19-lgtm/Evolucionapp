@@ -2,6 +2,16 @@
   "appId": "com.evolucionapp.app",
   "appName": "Evolucionapp",
   "webDir": "www",
-  "server": { "androidScheme": "https" },
-  "android": { "allowMixedContent": false }
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_evolucionapp",
+      "iconColor": "#2F6FED"
+    }
+  }
 }

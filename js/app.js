@@ -5,6 +5,7 @@ import { html, raw, setHtml, fail, spinner, closeAllModals } from './util.js';
 import { ICONS, LOGO } from './icons.js';
 import { maybeTour } from './onboarding.js';
 import { setSearchProxy } from './off.js';
+import { initReminders } from './reminders.js';
 
 const TABS = [
   { name: 'home', icon: 'home' },
@@ -133,6 +134,7 @@ function startApp() {
   shell();
   renderRoute();
   maybeTour();
+  try { initReminders(); } catch (e) { console.warn(e); } // avisos de la APK (en la web no hace nada)
 }
 
 window.addEventListener('hashchange', renderRoute);

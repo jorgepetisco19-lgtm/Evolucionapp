@@ -1,8 +1,9 @@
-// Ajustes: idioma, tema, instalar la app y cerrar sesión.
+// Ajustes: idioma, tema, avisos (solo APK), instalar la app y cerrar sesión.
 import { session, signOut } from '../db.js';
 import { html, setHtml, on, fail } from '../util.js';
 import { t, getLang, setLang } from '../i18n.js';
 import { openTour, showSteps } from '../onboarding.js';
+import { mountReminders } from './reminders-card.js';
 
 const THEMES = ['auto', 'light', 'dark'];
 const getTheme = () => { try { return localStorage.getItem('theme') || 'auto'; } catch { return 'auto'; } };
@@ -24,6 +25,7 @@ export async function render(el) {
       <h3>${t('settings.theme')}</h3>
       <div class="chips">${THEMES.map((k) => html`<button class="chip ${theme === k ? 'on' : ''}" data-theme="${k}">${t('settings.theme.' + k)}</button>`)}</div>
     </div>
+    <div id="rem-box"></div>
     <div class="card"><h3>${t('settings.tour')}</h3><p class="muted small">${t('settings.tourHelp')}</p><button class="btn" id="tour">${t('settings.tourBtn')}</button></div>
     ${window.__installPrompt ? html`<div class="card"><h3>${t('settings.install')}</h3><p class="muted small">${t('settings.installHelp')}</p><button class="btn primary" id="install">${t('settings.installBtn')}</button></div>` : html`<div class="card"><h3>${t('settings.install')}</h3><p class="muted small">${t('settings.installManual')}</p></div>`}
     <div class="card">
@@ -32,6 +34,7 @@ export async function render(el) {
       <button class="btn danger" id="logout">${t('settings.logout')}</button>
     </div>
     <p class="tiny muted center"><a href="privacidad.html">${t('login.privacy')}</a> · <a href="terminos.html">${t('login.terms')}</a> · ${window.APP_VERSION || ''}</p>`);
+  mountReminders(el.querySelector('#rem-box'));
   on(el, 'click', '[data-lang]', (e, b) => { setLang(b.dataset.lang); });
   on(el, 'click', '[data-theme]', (e, b) => {
     try { localStorage.setItem('theme', b.dataset.theme); } catch { /* sin almacenamiento */ }

@@ -70,6 +70,10 @@ export async function signOut() {
 // ---------- tablas ----------
 const check = ({ data, error }) => { if (error) throw error; return data; };
 
+// Avisa (js/reminders.js) de que cambió un peso o un entreno, para reprogramar los recordatorios («hoy ya lo has registrado»).
+const WATCHED = new Set(['weigh_ins', 'workouts']);
+const changed = (table, data) => { if (WATCHED.has(table)) window.dispatchEvent(new Event('evo:data')); return data; };
+
 export async function listRange(table, from, to, cols = '*', order = 'date') {
   return check(await sb.from(table).select(cols).gte('date', from).lte('date', to).order(order, { ascending: true }));
 }
@@ -80,27 +84,28 @@ export async function getBy(table, col, val) {
   return check(await sb.from(table).select('*').eq(col, val));
 }
 export async function upsert(table, row, onConflict) {
-  return check(await sb.from(table).upsert(row, { onConflict }).select().single());
+  return changed(table, check(await sb.from(table).upsert(row, { onConflict }).select().single()));
 }
 // Guarda varias filas a la vez; si ya existe una con la misma clave (onConflict), la actualiza.
 export async function upsertMany(table, rows, onConflict) {
-  return check(await sb.from(table).upsert(rows, { onConflict }).select());
+  return changed(table, check(await sb.from(table).upsert(rows, { onConflict }).select()));
 }
 export async function insert(table, row) {
-  return check(await sb.from(table).insert(row).select().single());
+  return changed(table, check(await sb.from(table).insert(row).select().single()));
 }
 export async function insertMany(table, rows) {
-  return check(await sb.from(table).insert(rows).select());
+  return changed(table, check(await sb.from(table).insert(rows).select()));
 }
 export async function update(table, id, row) {
-  return check(await sb.from(table).update(row).eq('id', id).select().single());
+  return changed(table, check(await sb.from(table).update(row).eq('id', id).select().single()));
 }
 // Cambia lo mismo en varias filas a la vez (una sola petición).
 export async function updateMany(table, ids, row) {
-  return check(await sb.from(table).update(row).in('id', ids).select());
+  return changed(table, check(await sb.from(table).update(row).in('id', ids).select()));
 }
 export async function remove(table, id) {
   check(await sb.from(table).delete().eq('id', id));
+  changed(table);
 }
 
 // ---------- fotos (Storage privado + URLs firmadas) ----------
