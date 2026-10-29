@@ -160,7 +160,7 @@ async function boot() {
   const params = new URL(location.href).searchParams;
   const oauthError = params.get('error_description') || params.get('error');
   setHtml(root, spinner());
-  listenNativeLogin((msg) => fail(new Error(msg))); // solo hace algo dentro de la APK
+  try { listenNativeLogin((msg) => fail(new Error(msg))); } catch (e) { console.error(e); } // solo hace algo dentro de la APK
   try {
     const { data } = await sb.auth.getSession();
     setUser(data.session ? data.session.user : null, oauthError);
@@ -185,4 +185,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:' && !isNative()
   window.addEventListener('load', () => navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {}));
 }
 
-boot();
+// Si el arranque falla por lo que sea, se muestra el motivo en pantalla en vez de dejar un círculo girando para siempre.
+boot().catch((e) => { console.error(e); setUser(null, (e && e.message) || String(e)); });

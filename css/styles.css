@@ -367,7 +367,38 @@ table.diff tbody th { text-align: left; font-weight: 600; }
 
 /* Importar de Health Connect (APK) */
 .hc-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 12px; }
-.hc-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.hc-item input { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+.hc-item { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.hc-row { display: flex; gap: 12px; align-items: flex-start; }
+.hc-row input { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+.hc-merge { width: 100%; margin-top: 8px; min-height: 40px; }
 .hc-item.done { opacity: .55; }
 .warn-text { color: var(--orange); }
+
+/* Deporte › Resumen (v14) */
+.streak-head { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.streak-num { flex: none; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 1.6rem; font-weight: 800; background: var(--surface-2); color: var(--muted); }
+.streak-num.on { background: color-mix(in srgb, var(--orange) 22%, var(--surface)); color: var(--orange); }
+.streak .bar { margin: 6px 0 12px; }
+.goal-row { display: flex; align-items: center; gap: 10px; }
+.goal-row .icon-btn { border: 1px solid var(--line); border-radius: 10px; font-size: 1.2rem; font-weight: 700; }
+.goal-row .icon-btn[disabled] { opacity: .4; }
+.goal-n { min-width: 1.6ch; text-align: center; font-size: 1.15rem; }
+.medals { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.medal { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 10px 4px; border-radius: 12px; background: var(--surface-2); }
+.medal-ic { font-size: 1.7rem; line-height: 1.2; }
+.medal b { font-size: .78rem; } .medal small { color: var(--muted); }
+.medal.earned { background: color-mix(in srgb, var(--yellow) 22%, var(--surface)); }
+.medal.earned small { color: var(--green); font-weight: 700; }
+.medal.locked .medal-ic { filter: grayscale(1); opacity: .45; } .medal.locked b { color: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 0 0 8px; }
+.tile { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); text-align: left; }
+.tile.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+.tile strong { font-size: 1.15rem; } .tile small { color: var(--muted); font-weight: 500; }
+.tile .tile-d { font-weight: 700; } .tile-d.up { color: var(--green); } .tile-d.down { color: var(--orange); }
+.filter-chip { margin: 0 0 8px; }
+.types { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.type-row { display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px; border: 1px solid transparent; border-radius: 10px; background: transparent; text-align: left; font-size: .9rem; }
+.type-row.on { border-color: var(--primary); background: var(--primary-soft); } .type-row.dim { opacity: .5; }
+.type-name { font-weight: 600; } .type-n { font-size: .85rem; white-space: nowrap; }
+.ch-bar { fill: var(--primary); opacity: .55; } .ch-bar.cur { opacity: 1; } .ch-bar.zero { fill: var(--line); opacity: 1; }
+.ch-val { fill: var(--text); font-size: 10px; font-weight: 600; }

@@ -35,3 +35,33 @@ export function lineChart(points, { unit = '', decimals = 1, height = 180 } = {}
     <text x="${W - R}" y="${H - 6}" class="ch-axis" text-anchor="end">${dateTiny(last.x)}</text>
   </svg>`;
 }
+
+/**
+ * Gráfica de barras en SVG (sin librerías). items: [{ label, value, title?, current? }].
+ * La barra con current:true se resalta (por ejemplo, la semana o el mes que estás viendo).
+ */
+export function barChart(items, { unit = '', decimals = 0, height = 170 } = {}) {
+  const W = 340, H = height, L = 8, R = 8, T = 20, B = 24;
+  if (!items.length) return html`<div class="chart-empty"></div>`;
+  const max = Math.max(...items.map((i) => i.value), 0);
+  const band = (W - L - R) / items.length;
+  const bw = Math.min(band * 0.62, 38);
+  const base = H - B;
+  const sy = (v) => (max > 0 ? (v / max) * (base - T) : 0);
+  const bars = items.map((it, i) => {
+    const cx = L + band * i + band / 2;
+    const h = sy(it.value);
+    const tip = `${it.title || it.label}: ${num(it.value, decimals)}${unit ? ' ' + unit : ''}`;
+    return `<g><title>${esc(tip)}</title>`
+      + (it.value > 0
+        ? `<rect x="${(cx - bw / 2).toFixed(1)}" y="${(base - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(h, 2).toFixed(1)}" rx="4" class="ch-bar${it.current ? ' cur' : ''}"/>`
+          + `<text x="${cx.toFixed(1)}" y="${(base - h - 5).toFixed(1)}" class="ch-val" text-anchor="middle">${esc(num(it.value, decimals))}</text>`
+        : `<rect x="${(cx - bw / 2).toFixed(1)}" y="${(base - 2).toFixed(1)}" width="${bw.toFixed(1)}" height="2" rx="1" class="ch-bar zero"/>`)
+      + `<text x="${cx.toFixed(1)}" y="${H - 7}" class="ch-axis" text-anchor="middle">${esc(it.label)}</text></g>`;
+  }).join('');
+  return html`<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" preserveAspectRatio="xMidYMid meet">
+    <line x1="${L}" x2="${W - R}" y1="${base}" y2="${base}" class="ch-grid"/>
+    ${raw(bars)}
+  </svg>`;
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

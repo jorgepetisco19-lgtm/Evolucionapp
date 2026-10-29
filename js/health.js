@@ -93,4 +93,17 @@ export function toRow(c, hr = {}) {
   return row;
 }
 
+/**
+ * Datos del reloj que se pueden AÑADIR a un entreno que ya existe: solo los campos que estén vacíos (nunca pisa lo tuyo).
+ * Se le pone el identificador de Health Connect para que no se ofrezca otra vez.
+ */
+export function mergePatch(existing, row) {
+  const patch = {};
+  for (const k of ['duration_min', 'calories_kcal', 'distance_km', 'hr_avg', 'hr_max']) if (existing[k] == null && row[k] != null) patch[k] = row[k];
+  const avg = patch.hr_avg ?? existing.hr_avg, max = patch.hr_max ?? existing.hr_max;
+  if (avg != null && max != null && avg > max) { delete patch.hr_avg; delete patch.hr_max; } // evitaría media > máxima: no se tocan las pulsaciones
+  patch.external_id = row.external_id;
+  return patch;
+}
+
 export const openHealthSettings = () => plugin().openHealthConnectSettings();

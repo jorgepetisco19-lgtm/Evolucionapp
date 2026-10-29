@@ -59,7 +59,7 @@ export function maybeTour() {
 
 // ---------- primeros pasos (Inicio) ----------
 const STEPS = [
-  { id: 'profile', table: 'profiles', col: 'user_id', href: '#/profile' },
+  { id: 'profile', table: 'profiles', col: 'user_id,height_cm', href: '#/profile', has: (rows) => rows.some((r) => r.height_cm != null) }, // el objetivo semanal también crea la fila de perfil: solo cuenta si hay altura
   { id: 'weight', table: 'weigh_ins', col: 'id', href: '#/body' },
   { id: 'photos', table: 'photos', col: 'id', href: '#/photos' },
   { id: 'meals', table: 'meals', col: 'id', href: '#/food' },
@@ -72,7 +72,7 @@ export async function firstSteps() {
   const done = await Promise.all(STEPS.map(async (s) => {
     try {
       const { data, error } = await sb.from(s.table).select(s.col).limit(1);
-      return !error && Array.isArray(data) && data.length > 0;
+      return !error && Array.isArray(data) && (s.has ? s.has(data) : data.length > 0);
     } catch { return false; }
   }));
   if (done.every(Boolean)) { write('stepsDone', '1'); return null; }

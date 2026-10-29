@@ -193,3 +193,7 @@ alter table public.workouts
   add column if not exists external_id text check (external_id is null or char_length(external_id) <= 200);
 create unique index if not exists workouts_external_id_uidx
   on public.workouts (user_id, external_id) where external_id is not null;
+
+-- Objetivo semanal de entrenos (v14). Instalaciones anteriores: ejecutar supabase/09-objetivo-semanal.sql
+alter table public.profiles
+  add column if not exists weekly_workout_goal smallint check (weekly_workout_goal between 1 and 14);

@@ -22,7 +22,11 @@ export function redirectUrl() {
 // Android devuelve a la app con un enlace especial (com.evolucionapp.app://auth?code=...). En la web normal nada de esto se usa.
 export const NATIVE_REDIRECT = 'com.evolucionapp.app://auth';
 export const isNative = () => !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
-const nativePlugin = (name) => window.Capacitor.registerPlugin(name);
+const nativePlugin = (name) => {
+  // registerPlugin lo aporta vendor/capacitor.js (@capacitor/core), que solo se añade a la copia que va dentro de la APK.
+  if (typeof window.Capacitor.registerPlugin !== 'function') throw new Error('Falta vendor/capacitor.js en la APK');
+  return window.Capacitor.registerPlugin(name);
+};
 
 /** Devuelve true si el login sigue en el navegador del sistema (versión APK) y false si la propia página se redirige (web). */
 export async function signInWithGoogle() {
@@ -42,7 +46,8 @@ let nativeListening = false;
 export function listenNativeLogin(onError) {
   if (!isNative() || nativeListening) return;
   nativeListening = true;
-  nativePlugin('App').addListener('appUrlOpen', async (ev) => {
+  const app = nativePlugin('App');
+  app.addListener('appUrlOpen', async (ev) => {
     const url = (ev && ev.url) || '';
     if (!url.startsWith(NATIVE_REDIRECT)) return;
     try { await nativePlugin('Browser').close(); } catch { /* en Android se cierra solo */ }
@@ -56,7 +61,7 @@ export function listenNativeLogin(onError) {
       const { error } = await sb.auth.exchangeCodeForSession(code);
       if (error) onError(error.message);
     } catch (e) { onError((e && e.message) || String(e)); }
-  });
+  }).catch((e) => onError((e && e.message) || String(e)));
 }
 export async function signOut() {
   await sb.auth.signOut();

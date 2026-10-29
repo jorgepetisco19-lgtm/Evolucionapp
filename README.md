@@ -23,6 +23,8 @@ js/views/           una pantalla por archivo (inicio, cuerpo, fotos, comparador,
 js/ocr.js           lectura de la captura de la báscula (2 pasadas: etiquetas y números)
 js/workout-ocr.js   (v12) lectura de la captura del resumen de un entreno (duración, kcal, pulsaciones, distancia)
 js/health.js        (v13) importar entrenos de Health Connect (solo en la APK de Android)
+js/sport-stats.js   (v14) cuentas del Resumen de Deporte: semanas, racha, medallas, totales por mes y por tipo
+js/views/sport-summary.js   (v14) pestaña Resumen de Deporte: racha semanal, medallas, cifras del mes, reparto por tipo y gráficos
 js/db.js            todo el acceso a Supabase
 js/net.js           corta las peticiones que no responden (12 s) y reintenta las lecturas una vez
 js/i18n.js          textos en español e inglés
@@ -48,6 +50,7 @@ capacitor.config.json, package.json, package-lock.json, scripts/prepare-www.mjs 
 .github/workflows/android.yml   (v12.1) receta que construye la APK en GitHub (pestaña Actions → Run workflow)
 supabase/07-entrenos-reloj.sql   (v12) añade calorías, pulsaciones, distancia y los tipos Correr / Bici / Natación a los entrenos
 supabase/08-entrenos-health-connect.sql   (v13) añade el identificador de Health Connect para no importar dos veces el mismo entreno
+supabase/09-objetivo-semanal.sql   (v14) añade a tu perfil el objetivo semanal de entrenos (racha y medallas)
 supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca alimentos en Open Food Facts por ti (el navegador no puede)
 ```
 
@@ -70,6 +73,8 @@ supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca 
 **Para los datos del reloj en los entrenos (v12):** ejecuta `supabase/07-entrenos-reloj.sql` (SQL Editor → pegar → Run). Es seguro repetirlo y no borra ni cambia tus entrenos. Sin él, los entrenos de siempre funcionan igual, pero al guardar calorías, pulsaciones, distancia o los tipos Correr / Bici / Natación la app avisa de que falta ejecutarlo.
 
 **Para importar entrenos de Health Connect (v13, solo APK):** ejecuta también `supabase/08-entrenos-health-connect.sql` (mismo procedimiento; seguro repetirlo). Detalles en `APK.md`.
+
+**Para el Resumen de Deporte (v14):** ejecuta `supabase/09-objetivo-semanal.sql` (mismo procedimiento; seguro repetirlo). Sin él, el Resumen funciona igual pero el objetivo semanal no se guarda (usa 3) y la app te avisa.
 
 Si Google devuelve `redirect_uri_mismatch`, espera unos minutos (Google tarda en aplicar los cambios) y revisa que la URI de redirección sea exactamente
 `https://nxcyupxvkygghlwpboge.supabase.co/auth/v1/callback`.

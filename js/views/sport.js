@@ -1,6 +1,7 @@
 // Deporte: registro de entrenos (gimnasio, pádel, caminar...) y rutinas guardadas con series, repeticiones y carga.
 import { listRange, listAll, insert, update, remove } from '../db.js';
-import { healthSupported, ensureAccess, recentWorkouts, heartStats, toRow, openHealthSettings } from '../health.js';
+import { renderSummary } from './sport-summary.js';
+import { healthSupported, ensureAccess, recentWorkouts, heartStats, toRow, mergePatch, openHealthSettings } from '../health.js';
 import { exerciseEditor, summarize, cleanExercises, setsText } from '../exercises.js';
 import {
   html, raw, setHtml, on, openModal, spinner, todayStr, addDays, dateLong, toNum, fail, toast, navigate, refresh, confirmBox, weekdayIndex, parseDate,
@@ -25,17 +26,18 @@ const weekdayName = (i, style = 'short') => new Intl.DateTimeFormat(locale(), { 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 
 export async function render(el, params) {
-  const tab = params.tab === 'routines' ? 'routines' : 'day';
+  const tab = params.tab === 'routines' ? 'routines' : params.tab === 'summary' ? 'summary' : 'day';
   setHtml(el, html`
     <div class="seg" role="tablist">
       <button data-tab="day" class="${tab === 'day' ? 'on' : ''}">${t('sport.day')}</button>
       <button data-tab="routines" class="${tab === 'routines' ? 'on' : ''}">${t('sport.routines')}</button>
+      <button data-tab="summary" class="${tab === 'summary' ? 'on' : ''}">${t('sport.summary')}</button>
     </div>
     <div id="sport-content"></div>`);
   on(el, 'click', '.seg [data-tab]', (e, b) => navigate('sport', { tab: b.dataset.tab }));
   const box = el.querySelector('#sport-content');
   setHtml(box, spinner()); // mientras llegan los datos se ve el círculo, no un hueco vacío
-  if (tab === 'day') await renderDay(box, params); else await renderRoutines(box);
+  if (tab === 'day') await renderDay(box, params); else if (tab === 'summary') await renderSummary(box); else await renderRoutines(box);
 }
 
 // ---------- diario ----------
@@ -240,11 +242,13 @@ function openWorkout({ date, routines, existing, type, routine }) {
 
 // ---------- importar de Health Connect (solo APK) ----------
 const dayShort = (d) => new Intl.DateTimeFormat(locale(), { weekday: 'short', day: 'numeric', month: 'short' }).format(parseDate(d));
-const hcSqlMissing = (e) => !!e && (['PGRST204', '42703'].includes(e.code) || /external_id/.test(e.message || ''));
+const hcSqlMissing = (e) => !!e && (['PGRST204', '42703'].includes(e.code) || /external_id|calories_kcal|hr_avg|distance_km/.test(e.message || ''));
+// Falta el 08 (external_id) o, si ni siquiera se ejecutó el 07, el 07.
+const hcNeedSqlMsg = (e) => (/calories_kcal|hr_avg|hr_max|distance_km/.test((e && e.message) || '') && !/external_id/.test((e && e.message) || '') ? t('sport.needSql') : t('hc.needSql'));
 function openImport() {
   const m = openModal(html`<div id="hc-box"></div>`, { title: t('hc.title'), wide: true });
   const box = m.body.querySelector('#hc-box');
-  const S = { phase: 'loading', msg: '', list: [], picked: new Set(), imported: new Set(), sameDay: new Set(), hr: true };
+  const S = { phase: 'loading', msg: '', list: [], picked: new Set(), imported: new Set(), byDay: new Map(), mode: {}, hr: true }; // mode[id] = 'new' o el id de un entreno existente al que añadir los datos
   const line = (c) => [c.duration_min ? `${c.duration_min} min` : '', statsText(c)].filter(Boolean).join(' · ');
   const draw = () => {
     if (S.phase === 'loading') return setHtml(box, spinner(S.msg || t('hc.loading')));
@@ -257,34 +261,54 @@ function openImport() {
     setHtml(box, html`
       <p class="tiny muted">${t('hc.hint')}</p>
       ${S.hr ? '' : html`<p class="note warn">${t('hc.noHr')}</p>`}
-      <div class="hc-list">${S.list.map((c) => html`
-        <label class="hc-item ${S.imported.has(c.id) ? 'done' : ''}">
-          <input type="checkbox" data-id="${c.id}" ${S.picked.has(c.id) ? 'checked' : ''} ${S.imported.has(c.id) ? 'disabled' : ''}>
-          <span class="grow">
-            <strong>${t('sport.type.' + c.type)}</strong> <span class="muted small">${dayShort(c.date)} · ${c.time}</span><br>
-            <span class="small">${line(c) || '—'}</span>
-            ${S.imported.has(c.id) ? html`<br><span class="tiny muted">${t('hc.already')}</span>` : S.sameDay.has(c.date) ? html`<br><span class="tiny warn-text">${t('hc.sameDay')}</span>` : ''}
-          </span>
-        </label>`)}</div>
+      <div class="hc-list">${S.list.map((c) => {
+    const here = S.imported.has(c.id) ? [] : (S.byDay.get(c.date) || []).filter((w) => !Object.entries(S.mode).some(([id, v]) => id !== c.id && v === w.id)); // los de ese día que otro entrenó del reloj no ha elegido ya
+    const cur = S.mode[c.id] || 'new';
+    return html`
+        <div class="hc-item ${S.imported.has(c.id) ? 'done' : ''}">
+          <label class="hc-row">
+            <input type="checkbox" data-id="${c.id}" ${S.picked.has(c.id) ? 'checked' : ''} ${S.imported.has(c.id) ? 'disabled' : ''}>
+            <span class="grow">
+              <strong>${t('sport.type.' + c.type)}</strong> <span class="muted small">${dayShort(c.date)} · ${c.time}</span><br>
+              <span class="small">${line(c) || '—'}</span>
+              ${S.imported.has(c.id) ? html`<br><span class="tiny muted">${t('hc.already')}</span>` : here.length && cur === 'new' ? html`<br><span class="tiny warn-text">${t('hc.sameDay')}</span>` : ''}
+            </span>
+          </label>
+          ${here.length ? html`<select class="hc-merge" data-merge="${c.id}" aria-label="${t('hc.mergeLabel')}">
+            <option value="new">${t('hc.asNew')}</option>
+            ${here.map((w) => html`<option value="${w.id}" ${cur === w.id ? 'selected' : ''}>${t('hc.addTo', { w: [w.name || t('sport.type.' + w.type), w.duration_min ? w.duration_min + ' min' : ''].filter(Boolean).join(' · ') })}</option>`)}
+          </select>` : ''}
+        </div>`;
+  })}</div>
       <div class="form-actions"><button class="btn primary" id="hc-go" ${n ? '' : 'disabled'}>${t('hc.import', { n })}</button></div>`);
   };
   const stop = (msg, settings = false) => { S.phase = 'msg'; S.msg = msg; S.settings = settings; draw(); };
   on(box, 'change', '[data-id]', (e, c) => { if (c.checked) S.picked.add(c.dataset.id); else S.picked.delete(c.dataset.id); draw(); });
+  on(box, 'change', '[data-merge]', (e, sel) => {
+    const id = sel.dataset.merge;
+    if (sel.value === 'new') delete S.mode[id]; else { S.mode[id] = sel.value; S.picked.add(id); } // elegir un entreno al que añadir marca también el casillero
+    draw();
+  });
   on(box, 'click', '#hc-settings', () => { openHealthSettings().catch((e) => console.warn(e)); });
   on(box, 'click', '#hc-go', async () => {
     const chosen = S.list.filter((c) => S.picked.has(c.id));
     let ok = 0;
+    const merged = [];
     S.phase = 'loading';
     try {
       for (const [i, c] of chosen.entries()) {
         S.msg = t('hc.importing', { i: i + 1, n: chosen.length });
         draw();
         const hr = S.hr ? await heartStats(c) : {};
-        try { await insert('workouts', toRow(c, hr)); ok++; } catch (err) { if (err && err.code === '23505') continue; throw err; } // 23505: ya estaba importado
+        const target = S.mode[c.id] && (S.byDay.get(c.date) || []).find((w) => w.id === S.mode[c.id]);
+        try {
+          if (target) { await update('workouts', target.id, mergePatch(target, toRow(c, hr))); merged.push(c.id); } // añade los datos a SU entreno
+          else { await insert('workouts', toRow(c, hr)); ok++; }
+        } catch (err) { if (err && err.code === '23505') continue; throw err; } // 23505: ya estaba importado
       }
-      m.close(); toast(t('hc.imported', { n: ok })); refresh();
+      m.close(); toast(t('hc.imported', { n: ok + merged.length })); refresh();
     } catch (err) {
-      if (hcSqlMissing(err)) { console.warn(err); stop(t('hc.needSql')); } else { console.error(err); stop(t('hc.fail') + ((err && err.message) ? ` (${err.message})` : '')); }
+      if (hcSqlMissing(err)) { console.warn(err); stop(hcNeedSqlMsg(err)); } else { console.error(err); stop(t('hc.fail') + ((err && err.message) ? ` (${err.message})` : '')); }
     }
   });
   (async () => {
@@ -295,16 +319,16 @@ function openImport() {
       const list = await recentWorkouts(30);
       let known = [];
       if (list.length) {
-        try { known = await listRange('workouts', addDays(todayStr(), -40), addDays(todayStr(), 1), 'id,date,external_id'); } catch (err) {
-          if (hcSqlMissing(err)) return stop(t('hc.needSql'));
+        try { known = await listRange('workouts', addDays(todayStr(), -40), addDays(todayStr(), 1), 'id,date,type,name,duration_min,calories_kcal,distance_km,hr_avg,hr_max,external_id', 'created_at'); } catch (err) {
+          if (hcSqlMissing(err)) return stop(hcNeedSqlMsg(err));
           throw err;
         }
       }
       S.imported = new Set(known.map((w) => w.external_id).filter(Boolean));
-      S.sameDay = new Set(known.filter((w) => !w.external_id).map((w) => w.date));
+      for (const w of known.filter((x) => !x.external_id)) S.byDay.set(w.date, [...(S.byDay.get(w.date) || []), w]);
       S.list = list;
       // Marcados de entrada: los nuevos de días en los que aún no hay ningún entreno.
-      S.picked = new Set(list.filter((c) => !S.imported.has(c.id) && !S.sameDay.has(c.date)).map((c) => c.id));
+      S.picked = new Set(list.filter((c) => !S.imported.has(c.id) && !S.byDay.has(c.date)).map((c) => c.id));
       S.phase = 'list';
       draw();
     } catch (err) {
