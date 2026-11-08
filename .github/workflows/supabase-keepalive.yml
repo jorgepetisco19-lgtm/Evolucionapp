@@ -1,6 +1,6 @@
 # Mantiene despierto el proyecto gratuito de Supabase (que se pausa tras ~1 semana con poca actividad).
-# Cada 3 días hace una consulta mínima a la base de datos con la clave pública (anon) de js/config.js.
-# No lee datos de nadie: la seguridad (RLS) hace que devuelva una lista vacía. Solo cuenta como «actividad».
+# Cada 3 días llama a la función ping() de la base de datos (supabase/11-ping.sql) con la clave pública (anon) de js/config.js.
+# ping() solo devuelve el número 1: no lee ni toca datos de nadie. Pero es una consulta real y cuenta como «actividad».
 # Si Supabase no responde bien (p. ej. el proyecto ya está pausado), la ejecución sale en ROJO y GitHub te avisa por correo.
 # Probarlo a mano: pestaña «Actions» → «Mantener Supabase despierto» → «Run workflow».
 name: Mantener Supabase despierto
@@ -30,12 +30,13 @@ jobs:
             exit 1
           fi
           echo "Consultando $URL"
-          CODE=$(curl -sS -m 30 --retry 3 --retry-delay 10 -o /tmp/resp.json -w "%{http_code}" \
-           "$URL/rest/v1/profiles?select=user_id&limit=1" \
-            -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          CODE=$(curl -sS -m 30 --retry 3 --retry-delay 10 -X POST -o /tmp/resp.json -w "%{http_code}" \
+            "$URL/rest/v1/rpc/ping" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            -H "Content-Type: application/json" -d '{}')
           echo "Respuesta HTTP $CODE"
           head -c 300 /tmp/resp.json; echo
           if [ "$CODE" != "200" ]; then
-            echo "::error::Supabase respondió $CODE. Si el proyecto está pausado, pulsa «Resume project» en supabase.com."
+            echo "::error::Supabase respondió $CODE. Si el proyecto está pausado, pulsa «Resume project» en supabase.com. Si el mensaje dice que no existe la función ping, ejecuta supabase/11-ping.sql en el SQL Editor."
             exit 1
           fi
