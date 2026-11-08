@@ -223,3 +223,13 @@ drop function if exists public.delete_my_account();
 
 revoke all on function public.delete_my_account(boolean) from public, anon;
 grant execute on function public.delete_my_account(boolean) to authenticated;
+
+-- ---- Añadido 11 (v18.1): ping() para mantener despierto el proyecto gratuito ----
+create or replace function public.ping()
+returns integer
+language sql
+stable
+as $$ select 1 $$;
+
+revoke all on function public.ping() from public;
+grant execute on function public.ping() to anon, authenticated;

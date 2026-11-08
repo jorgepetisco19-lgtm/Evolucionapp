@@ -83,6 +83,8 @@ supabase/functions/off-search/index.ts   (v11.2) función de Supabase que busca 
 
 **Para el Resumen de Deporte (v14):** ejecuta `supabase/09-objetivo-semanal.sql` (mismo procedimiento; seguro repetirlo). Sin él, el Resumen funciona igual pero el objetivo semanal no se guarda (usa 3) y la app te avisa.
 
+**Mantener Supabase despierto (v18.1):** el plan gratuito pausa el proyecto tras ~1 semana con poca actividad. Ejecuta `supabase/11-ping.sql` (crea `ping()`, devuelve 1) y crea en GitHub (web) `.github/workflows/supabase-keepalive.yml` con el contenido de `scripts/receta-github-supabase-keepalive.yml`: llama a `ping()` cada 3 días. Si el proyecto ya está pausado, hay que pulsar «Resume project» en supabase.com.
+
 **Borrar cuenta (v17):** ejecuta `supabase/10-borrar-cuenta.sql` (SQL Editor → pegar → Run; seguro repetirlo). Crea la función `delete_my_account()`. Sin ella, el botón de Ajustes avisa de que falta este paso y no borra nada. «Descargar mis datos» no necesita SQL.
 
 **Tendencia de peso (v16):** no necesita SQL: la meta es el «peso objetivo» que ya guarda tu Perfil. Se ve en Cuerpo → Peso (línea gruesa, filas Tendencia / Meta / A este ritmo). Solo da fecha con al menos 5 pesajes en las últimas 4 semanas que abarquen 2 semanas.
