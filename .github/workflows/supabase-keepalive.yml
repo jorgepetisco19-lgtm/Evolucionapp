@@ -31,7 +31,7 @@ jobs:
           fi
           echo "Consultando $URL"
           CODE=$(curl -sS -m 30 --retry 3 --retry-delay 10 -o /tmp/resp.json -w "%{http_code}" \
-            "$URL/rest/v1/profiles?select=id&limit=1" \
+           "$URL/rest/v1/profiles?select=user_id&limit=1" \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
           echo "Respuesta HTTP $CODE"
           head -c 300 /tmp/resp.json; echo
